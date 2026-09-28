@@ -1,0 +1,147 @@
+@startuml diagrama-de-classes
+title Sistema de Moeda Estudantil - Diagrama de Classes (protótipo)
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide empty members
+
+' ===================== Autenticação =====================
+abstract class Usuario {
+  - id: Long
+  - login: String
+  - senhaHash: String
+  - email: String
+  + autenticar(login: String, senha: String): boolean
+  + logout(): void
+}
+
+' ===================== Instituição =====================
+class Instituicao {
+  - id: Long
+  - nome: String
+}
+
+' ===================== Aluno =====================
+class Aluno {
+  - nome: String
+  - cpf: String
+  - rg: String
+  - endereco: String
+  - curso: String
+  - saldo: int = 0
+  + consultarExtrato(): List<Transacao>
+  + resgatarVantagem(vantagem: Vantagem): Resgate
+  + creditar(quantidade: int): void
+  + debitar(quantidade: int): void
+  + atualizarPerfil(dados: Aluno): void
+}
+
+' ===================== Professor =====================
+class Professor {
+  - nome: String
+  - cpf: String
+  - departamento: String
+  - saldo: int
+  + enviarMoedas(aluno: Aluno, quantidade: int, motivo: String): EnvioMoedas
+  + consultarExtrato(): List<Transacao>
+  + creditar(quantidade: int): void
+  + debitar(quantidade: int): void
+}
+
+' ===================== Empresa Parceira =====================
+class EmpresaParceira {
+  - nome: String
+  - cnpj: String
+  + cadastrarVantagem(nome: String, descricao: String, foto: String, custo: int): Vantagem
+  + editarVantagem(vantagem: Vantagem): void
+  + removerVantagem(vantagem: Vantagem): void
+  + atualizarPerfil(dados: EmpresaParceira): void
+}
+
+class Vantagem {
+  - id: Long
+  - nome: String
+  - descricao: String
+  - foto: String
+  - custo: int
+  - ativa: boolean
+}
+
+' ===================== Transações =====================
+abstract class Transacao {
+  - id: Long
+  - data: LocalDateTime
+  - quantidade: int
+}
+
+class EnvioMoedas {
+  - motivo: String
+}
+
+class Resgate {
+  - codigoCupom: String
+  + {static} gerarCodigoCupom(): String
+}
+
+class CreditoSemestral {
+  - semestre: String
+}
+
+' ===================== Serviços =====================
+class TransacaoService {
+  + enviarMoedas(professor: Professor, aluno: Aluno, quantidade: int, motivo: String): EnvioMoedas
+  + resgatarVantagem(aluno: Aluno, vantagem: Vantagem): Resgate
+  + creditarSemestre(semestre: String): void
+}
+
+interface NotificacaoService {
+  + notificarRecebimento(envio: EnvioMoedas): void
+  + enviarCupomAluno(resgate: Resgate): void
+  + enviarConferenciaEmpresa(resgate: Resgate): void
+}
+
+class EmailNotificacaoService
+
+' ===================== Relacionamentos =====================
+Usuario <|-- Aluno
+Usuario <|-- Professor
+Usuario <|-- EmpresaParceira
+
+Transacao <|-- EnvioMoedas
+Transacao <|-- Resgate
+Transacao <|-- CreditoSemestral
+
+Aluno "*" --> "1" Instituicao : estuda em
+Professor "*" --> "1" Instituicao : vinculado a
+
+EmpresaParceira "1" *-- "*" Vantagem : oferece
+
+EnvioMoedas "*" --> "1" Professor : remetente
+EnvioMoedas "*" --> "1" Aluno : destinatário
+
+Resgate "*" --> "1" Aluno : resgatado por
+Resgate "*" --> "1" Vantagem : refere-se a
+
+CreditoSemestral "*" --> "1" Professor : beneficiário
+
+NotificacaoService <|.. EmailNotificacaoService
+TransacaoService ..> NotificacaoService : usa
+TransacaoService ..> Transacao : cria
+
+note right of CreditoSemestral
+  1.000 moedas por professor,
+  uma única vez por semestre (HU16).
+  Saldo é acumulável.
+end note
+
+note bottom of Resgate
+  Permitido apenas se
+  aluno.saldo >= vantagem.custo (HU08).
+end note
+
+note bottom of EnvioMoedas
+  quantidade > 0, motivo obrigatório
+  e saldo do professor suficiente (HU09).
+end note
+
+@enduml

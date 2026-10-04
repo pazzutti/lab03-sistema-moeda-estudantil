@@ -1,0 +1,79 @@
+@startuml casos_de_uso_moeda
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Casos de Uso - Lab03S01
+' Fonte versionada em docs/diagramas/casos-de-uso.puml
+' Casos de uso derivados das Historias de Usuario (docs/historias-de-usuario.md)
+' =====================================================================
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam usecase {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+
+' ============================== ATORES ===============================
+actor Visitante
+actor Usuario as "Usuário"
+actor Aluno
+actor Professor
+actor Empresa as "Empresa Parceira"
+actor Agendador <<sistema>>
+actor Email as "Serviço de Email" <<sistema externo>>
+
+Aluno --|> Usuario
+Professor --|> Usuario
+Empresa --|> Usuario
+
+rectangle "Sistema de Moeda Estudantil" {
+
+  ' --- Cadastro e acesso (HU01-HU04, HU11-HU12) ---
+  usecase "Cadastrar-se como aluno - UC01" as UC01
+  usecase "Cadastrar-se como empresa parceira - UC02" as UC02
+  usecase "Realizar login - UC03" as UC03
+  usecase "Manter dados cadastrais - UC04" as UC04
+
+  ' --- Moedas (HU05-HU06, HU09-HU10) ---
+  usecase "Consultar extrato - UC05" as UC05
+  usecase "Enviar moedas - UC06" as UC06
+  usecase "Notificar aluno por email - UC07" as UC07
+
+  ' --- Vantagens (HU07-HU08, HU13-HU15) ---
+  usecase "Consultar vantagens - UC08" as UC08
+  usecase "Resgatar vantagem - UC09" as UC09
+  usecase "Enviar cupom por email - UC10" as UC10
+  usecase "Manter vantagens - UC11" as UC11
+
+  ' --- Sistema (HU16) ---
+  usecase "Creditar moedas semestrais - UC12" as UC12
+}
+
+' ============================ ASSOCIACOES =============================
+Visitante --> UC01
+Visitante --> UC02
+Usuario --> UC03
+
+Aluno --> UC04
+Aluno --> UC05
+Aluno --> UC08
+Aluno --> UC09
+
+Professor --> UC05
+Professor --> UC06
+
+Empresa --> UC04
+Empresa --> UC11
+
+Agendador --> UC12
+
+UC07 --> Email
+UC10 --> Email
+
+' ========================= INCLUDE / EXTEND ============================
+UC06 ..> UC07 : <<include>>
+UC09 ..> UC08 : <<include>>
+UC09 ..> UC10 : <<include>>\n(aluno e empresa)
+
+@enduml

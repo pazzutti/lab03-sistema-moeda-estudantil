@@ -1,0 +1,92 @@
+@startuml diagrama_de_componentes
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Componentes - Lab03S01
+' Fonte versionada em docs/diagramas/diagrama-de-componentes.puml
+' Arquitetura: aplicacao web MVC em camadas sobre banco relacional
+' =====================================================================
+
+skinparam shadowing false
+skinparam componentStyle uml2
+skinparam linetype ortho
+skinparam ranksep 60
+skinparam nodesep 55
+skinparam component {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+skinparam interface {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #888888
+}
+skinparam database {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+
+actor "Usuário\n(Aluno / Professor / Empresa)" as Usuario
+
+node "Estação do Usuário" {
+  [Interface Web\n(Navegador)] as UI
+}
+
+node "Servidor de Aplicação" {
+
+  package "Apresentação" {
+    [Filtro de\nAutenticação] as Filtro
+    [Controlador de\nUsuários] as CtrlUsuario
+    [Controlador de\nTransações] as CtrlTransacao
+    [Controlador de\nVantagens] as CtrlVantagem
+  }
+
+  package "Negócio" {
+    [Serviço de\nUsuários] as SrvUsuario
+    [Serviço de\nTransações] as SrvTransacao
+    [Serviço de\nVantagens] as SrvVantagem
+    [Serviço de\nNotificação] as SrvNotificacao
+    [Crédito Semestral\n(agendado)] as Job
+  }
+
+  package "Persistência" {
+    [Repositórios] as Repos
+  }
+}
+
+database "Banco de Dados" as BD
+cloud "Servidor de Email\n(SMTP)" as SMTP
+
+interface "HTTP" as IHttp
+interface "JDBC" as IJdbc
+
+' ======================== FLUXO DA REQUISICAO ========================
+Usuario --> UI
+UI --( IHttp
+IHttp -- Filtro
+
+Filtro --> CtrlUsuario
+Filtro --> CtrlTransacao
+Filtro --> CtrlVantagem
+
+CtrlUsuario ..> SrvUsuario
+CtrlTransacao ..> SrvTransacao
+CtrlVantagem ..> SrvVantagem
+
+' ==================== DEPENDENCIAS ENTRE SERVICOS ====================
+Filtro ..> SrvUsuario : valida sessão
+SrvTransacao ..> SrvVantagem : resgate
+SrvTransacao ..> SrvNotificacao : moedas e cupom
+Job ..> SrvTransacao : credita 1.000 moedas
+SrvNotificacao ..> SMTP
+
+' ======================= PERSISTENCIA -> BANCO =======================
+SrvUsuario ..> Repos
+SrvTransacao ..> Repos
+SrvVantagem ..> Repos
+Repos ..> IJdbc
+IJdbc -- BD
+
+@enduml

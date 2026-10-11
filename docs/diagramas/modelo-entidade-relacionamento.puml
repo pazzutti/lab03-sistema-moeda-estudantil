@@ -1,0 +1,145 @@
+@startuml modelo_entidade_relacionamento
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Modelo Entidade-Relacionamento (lógico) - Lab03S02
+' Fonte versionada em docs/diagramas/modelo-entidade-relacionamento.puml
+' Derivado do diagrama de classes (docs/diagramas/diagrama-de-classes.puml)
+'
+' Decisões de mapeamento:
+' - Credenciais (login/senha/email) ficam em "usuario"; aluno, professor e
+'   empresa_parceira referenciam usuario em 1:1 (a PK também é FK). Assim o
+'   login é único entre todos os tipos de usuário.
+' - Cada especialização de Transacao vira uma tabela própria; o extrato é a
+'   união das tabelas filtrada por aluno ou professor.
+' =====================================================================
+
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+
+' ========================== AUTENTICAÇÃO ============================
+entity "usuario" as usuario {
+  * id : INTEGER <<PK>>
+  --
+  * login : VARCHAR(60) <<UNIQUE>>
+  * senha : VARCHAR(100) <<hash bcrypt>>
+  * email : VARCHAR(120) <<UNIQUE>>
+  * tipo_usuario : VARCHAR(20) <<ALUNO | PROFESSOR | EMPRESA>>
+}
+
+' ========================== INSTITUIÇÃO =============================
+entity "instituicao" as instituicao {
+  * id : INTEGER <<PK>>
+  --
+  * nome : VARCHAR(120) <<UNIQUE>>
+}
+
+' ============================ PERFIS ================================
+entity "aluno" as aluno {
+  * usuario_id : INTEGER <<PK, FK>>
+  --
+  * instituicao_id : INTEGER <<FK>>
+  * nome : VARCHAR(120)
+  * cpf : CHAR(11) <<UNIQUE>>
+  * rg : VARCHAR(20)
+  * endereco : VARCHAR(255)
+  * curso : VARCHAR(120)
+  * saldo : INTEGER = 0
+}
+
+entity "professor" as professor {
+  * usuario_id : INTEGER <<PK, FK>>
+  --
+  * instituicao_id : INTEGER <<FK>>
+  * nome : VARCHAR(120)
+  * cpf : CHAR(11) <<UNIQUE>>
+  * departamento : VARCHAR(120)
+  * saldo : INTEGER = 0
+}
+
+entity "empresa_parceira" as empresa {
+  * usuario_id : INTEGER <<PK, FK>>
+  --
+  * nome : VARCHAR(120)
+  * cnpj : CHAR(14) <<UNIQUE>>
+}
+
+' =========================== VANTAGENS ==============================
+entity "vantagem" as vantagem {
+  * id : INTEGER <<PK>>
+  --
+  * empresa_id : INTEGER <<FK>>
+  * nome : VARCHAR(120)
+  * descricao : TEXT
+  * foto : VARCHAR(255)
+  * custo : INTEGER <<CHECK > 0>>
+  * ativa : BOOLEAN = true
+}
+
+' ========================== TRANSAÇÕES ==============================
+entity "envio_moedas" as envio {
+  * id : INTEGER <<PK>>
+  --
+  * professor_id : INTEGER <<FK>>
+  * aluno_id : INTEGER <<FK>>
+  * data : TIMESTAMP
+  * quantidade : INTEGER <<CHECK > 0>>
+  * motivo : TEXT
+}
+
+entity "resgate" as resgate {
+  * id : INTEGER <<PK>>
+  --
+  * aluno_id : INTEGER <<FK>>
+  * vantagem_id : INTEGER <<FK>>
+  * data : TIMESTAMP
+  * quantidade : INTEGER
+  * codigo_cupom : VARCHAR(20) <<UNIQUE>>
+}
+
+entity "credito_semestral" as credito {
+  * id : INTEGER <<PK>>
+  --
+  * professor_id : INTEGER <<FK>>
+  * data : TIMESTAMP
+  * quantidade : INTEGER = 1000
+  * semestre : CHAR(6) <<ex.: 2026.2>>
+  ..
+  UNIQUE (professor_id, semestre)
+}
+
+' ======================== RELACIONAMENTOS ===========================
+usuario ||--o| aluno : "é um"
+usuario ||--o| professor : "é um"
+usuario ||--o| empresa : "é um"
+
+instituicao ||--o{ aluno : "matricula"
+instituicao ||--o{ professor : "vincula"
+
+empresa ||--o{ vantagem : "oferece"
+
+professor ||--o{ envio : "envia"
+aluno ||--o{ envio : "recebe"
+
+aluno ||--o{ resgate : "resgata"
+vantagem ||--o{ resgate : "é resgatada em"
+
+professor ||--o{ credito : "recebe"
+
+note bottom of resgate
+  quantidade = custo da vantagem no
+  momento do resgate (histórico preservado
+  mesmo se o custo mudar). Mesmo código
+  enviado ao aluno e à empresa (HU08/HU15).
+end note
+
+note bottom of credito
+  Um crédito por professor por semestre;
+  saldo acumulável (HU16).
+end note
+
+@enduml

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cadastro de empresa - Moeda Estudantil</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <script src="js/api.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Moeda Estudantil</h1>
+      <nav id="menu"></nav>
+    </header>
+
+    <main>
+      <section class="cartao estreito">
+        <h2>Cadastro de empresa parceira</h2>
+        <form id="form-empresa">
+          <div id="mensagem" hidden></div>
+          <label>
+            Nome da empresa <input name="nome" required maxlength="120" />
+          </label>
+          <label>
+            CNPJ
+            <input name="cnpj" required placeholder="00.000.000/0000-00" />
+          </label>
+          <label>
+            Email <input name="email" type="email" required maxlength="120" />
+          </label>
+          <label>Login <input name="login" required maxlength="60" /></label>
+          <label>
+            Senha
+            <input name="senha" type="password" required minlength="6" />
+          </label>
+          <button type="submit">Cadastrar</button>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('form-empresa');
+      const mensagem = document.getElementById('mensagem');
+
+      form.addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+        const dados = lerFormulario(form);
+        try {
+          await api('/empresas', { method: 'POST', body: dados });
+          await login(dados.login, dados.senha);
+          window.location.href = 'empresas.html';
+        } catch (erro) {
+          mostrarMensagem(mensagem, erro.message);
+        }
+      });
+    </script>
+  </body>
+</html>

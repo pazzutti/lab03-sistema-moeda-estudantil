@@ -1,0 +1,176 @@
+:root {
+  --cor-primaria: #1d4ed8;
+  --cor-primaria-escura: #1e3a8a;
+  --cor-fundo: #f3f4f6;
+  --cor-borda: #d1d5db;
+  --cor-erro: #b91c1c;
+  --cor-sucesso: #15803d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--cor-fundo);
+  color: #111827;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--cor-primaria-escura);
+  color: #fff;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+nav a,
+nav .link {
+  color: #fff;
+  text-decoration: none;
+}
+
+nav a:hover,
+nav .link:hover {
+  text-decoration: underline;
+}
+
+nav .usuario {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+main {
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+.cartao {
+  background: #fff;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.cartao.estreito {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+h2 {
+  margin-top: 0;
+}
+
+form {
+  display: grid;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-weight: 500;
+}
+
+input,
+select {
+  padding: 8px 10px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 6px;
+  font: inherit;
+}
+
+input:disabled {
+  background: var(--cor-fundo);
+}
+
+button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--cor-primaria);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--cor-primaria-escura);
+}
+
+button.perigo {
+  background: var(--cor-erro);
+}
+
+button.link {
+  padding: 0;
+  background: none;
+}
+
+.acoes {
+  display: flex;
+  gap: 12px;
+}
+
+.mensagem {
+  padding: 10px 12px;
+  border-radius: 6px;
+  white-space: pre-line;
+}
+
+.mensagem.erro {
+  background: #fee2e2;
+  color: var(--cor-erro);
+}
+
+.mensagem.sucesso {
+  background: #dcfce7;
+  color: var(--cor-sucesso);
+}
+
+.tabela {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--cor-borda);
+  text-align: left;
+}
+
+th {
+  background: var(--cor-fundo);
+}
+
+tr.proprio {
+  background: #eff6ff;
+}
+
+.vazio {
+  color: #6b7280;
+  text-align: center;
+}

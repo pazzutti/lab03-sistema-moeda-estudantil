@@ -41,8 +41,8 @@ rectangle "Sistema de Moeda Estudantil" {
   usecase "Notificar aluno por email - UC07" as UC07
 
   ' --- Vantagens (HU07-HU08, HU13-HU15) ---
-  usecase "Consultar vantagens - UC08" as UC08
   usecase "Resgatar vantagem - UC09" as UC09
+  usecase "Consultar vantagens - UC08" as UC08
   usecase "Enviar cupom por email - UC10" as UC10
   usecase "Manter vantagens - UC11" as UC11
 
@@ -58,7 +58,6 @@ Usuario --> UC03
 Aluno --> UC04
 Aluno --> UC05
 Aluno --> UC08
-Aluno --> UC09
 
 Professor --> UC05
 Professor --> UC06
@@ -72,8 +71,8 @@ UC07 --> Email
 UC10 --> Email
 
 ' ========================= INCLUDE / EXTEND ============================
+UC08 ..> UC09 : <<extend>>
 UC06 ..> UC07 : <<include>>
-UC09 ..> UC08 : <<include>>
 UC09 ..> UC10 : <<include>>\n(aluno e empresa)
 
 @enduml

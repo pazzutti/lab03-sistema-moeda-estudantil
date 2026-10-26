@@ -31,7 +31,7 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const [esquema, token] = request.headers.authorization?.split(' ') ?? [];
     if (esquema !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Autenticacao necessaria');
+      throw new UnauthorizedException('Faça login para continuar.');
     }
 
     try {
@@ -42,7 +42,7 @@ export class AuthGuard implements CanActivate {
         tipo: payload.tipo,
       } satisfies UsuarioAutenticado;
     } catch {
-      throw new UnauthorizedException('Autenticacao necessaria');
+      throw new UnauthorizedException('Sua sessão expirou. Entre novamente.');
     }
     return true;
   }

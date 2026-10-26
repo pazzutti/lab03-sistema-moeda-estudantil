@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { UsuarioAutenticado } from '../auth/auth.decorators.js';
+import { conflito } from '../common/erros.js';
 import { TipoUsuario, Usuario } from '../usuarios/usuario.entity.js';
 import { UsuariosService } from '../usuarios/usuarios.service.js';
 import { CreateEmpresaDto } from './dto/create-empresa.dto.js';
@@ -29,7 +29,7 @@ export class EmpresasService {
   async buscar(id: number): Promise<EmpresaParceira> {
     const empresa = await this.empresaRepository.findOneBy({ id });
     if (!empresa) {
-      throw new NotFoundException(`Empresa ${id} nao encontrada`);
+      throw new NotFoundException('Empresa não encontrada.');
     }
     return empresa;
   }
@@ -37,8 +37,9 @@ export class EmpresasService {
   async criar(dto: CreateEmpresaDto): Promise<EmpresaParceira> {
     const id = await this.dataSource.transaction(async (manager) => {
       if (await manager.existsBy(EmpresaParceira, { cnpj: dto.cnpj })) {
-        throw new ConflictException(
-          'Ja existe uma empresa cadastrada com este CNPJ',
+        throw conflito(
+          'cnpj',
+          'Já existe uma empresa cadastrada com este CNPJ.',
         );
       }
       const usuario = await this.usuariosService.criar(
@@ -92,7 +93,9 @@ export class EmpresasService {
   /** Cada empresa so pode editar ou excluir o proprio cadastro. */
   private garantirPropriaEmpresa(id: number, usuario: UsuarioAutenticado) {
     if (usuario.tipo !== TipoUsuario.EMPRESA || usuario.id !== id) {
-      throw new ForbiddenException('Acesso negado');
+      throw new ForbiddenException(
+        'Você só pode alterar o seu próprio cadastro.',
+      );
     }
   }
 }

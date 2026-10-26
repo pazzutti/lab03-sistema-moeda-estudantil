@@ -30,7 +30,7 @@ export function IsCpf(options?: ValidationOptions): PropertyDecorator {
       name: 'isCpf',
       target: target.constructor,
       propertyName: propertyKey as string,
-      options: { message: 'cpf invalido', ...options },
+      options: { message: 'CPF inválido: confira os dígitos.', ...options },
       validator: {
         validate: (value: unknown) =>
           typeof value === 'string' && cpfValido(value),

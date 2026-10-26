@@ -36,7 +36,7 @@ export class InstituicoesService implements OnApplicationBootstrap {
   async buscar(id: number): Promise<Instituicao> {
     const instituicao = await this.instituicaoRepository.findOneBy({ id });
     if (!instituicao) {
-      throw new NotFoundException(`Instituicao ${id} nao encontrada`);
+      throw new NotFoundException('Instituição de ensino não encontrada.');
     }
     return instituicao;
   }

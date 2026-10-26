@@ -32,7 +32,7 @@ export function IsCnpj(options?: ValidationOptions): PropertyDecorator {
       name: 'isCnpj',
       target: target.constructor,
       propertyName: propertyKey as string,
-      options: { message: 'cnpj invalido', ...options },
+      options: { message: 'CNPJ inválido: confira os dígitos.', ...options },
       validator: {
         validate: (value: unknown) =>
           typeof value === 'string' && cnpjValido(value),

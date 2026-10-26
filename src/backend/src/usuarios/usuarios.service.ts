@@ -1,7 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { EntityManager, Not, Repository } from 'typeorm';
+import { conflito } from '../common/erros.js';
 import { TipoUsuario, Usuario } from './usuario.entity.js';
 
 const CUSTO_BCRYPT = 10;
@@ -28,9 +29,7 @@ export class UsuariosService {
   ): Promise<Usuario> {
     const repo = manager.getRepository(Usuario);
     if (await repo.existsBy({ login: dados.login })) {
-      throw new ConflictException(
-        `Ja existe um usuario cadastrado com o login ${dados.login}`,
-      );
+      throw conflito('login', `O login "${dados.login}" já está em uso.`);
     }
     await this.garantirEmailDisponivel(repo, dados.email);
 
@@ -81,9 +80,7 @@ export class UsuariosService {
       idAtual === undefined ? { email } : { email, id: Not(idAtual) },
     );
     if (emUso) {
-      throw new ConflictException(
-        `Ja existe um usuario cadastrado com o email ${email}`,
-      );
+      throw conflito('email', `O email ${email} já está em uso.`);
     }
   }
 }

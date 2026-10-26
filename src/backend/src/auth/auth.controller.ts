@@ -42,7 +42,7 @@ export class AuthController {
       dto.senha,
     );
     if (!usuario) {
-      throw new UnauthorizedException('Login ou senha invalidos');
+      throw new UnauthorizedException('Login ou senha inválidos.');
     }
     const token = await this.jwtService.signAsync({
       sub: usuario.id,

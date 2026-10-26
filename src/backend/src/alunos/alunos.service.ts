@@ -1,5 +1,4 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { UsuarioAutenticado } from '../auth/auth.decorators.js';
+import { conflito } from '../common/erros.js';
 import { InstituicoesService } from '../instituicoes/instituicoes.service.js';
 import { TipoUsuario, Usuario } from '../usuarios/usuario.entity.js';
 import { UsuariosService } from '../usuarios/usuarios.service.js';
@@ -31,7 +31,7 @@ export class AlunosService {
   async buscar(id: number): Promise<Aluno> {
     const aluno = await this.alunoRepository.findOneBy({ id });
     if (!aluno) {
-      throw new NotFoundException(`Aluno ${id} nao encontrado`);
+      throw new NotFoundException('Aluno não encontrado.');
     }
     return aluno;
   }
@@ -43,9 +43,7 @@ export class AlunosService {
 
     const id = await this.dataSource.transaction(async (manager) => {
       if (await manager.existsBy(Aluno, { cpf: dto.cpf })) {
-        throw new ConflictException(
-          'Ja existe um aluno cadastrado com este CPF',
-        );
+        throw conflito('cpf', 'Já existe um aluno cadastrado com este CPF.');
       }
       const usuario = await this.usuariosService.criar(
         manager,
@@ -106,7 +104,9 @@ export class AlunosService {
   /** Cada aluno so pode editar ou excluir o proprio cadastro. */
   private garantirProprioAluno(id: number, usuario: UsuarioAutenticado) {
     if (usuario.tipo !== TipoUsuario.ALUNO || usuario.id !== id) {
-      throw new ForbiddenException('Acesso negado');
+      throw new ForbiddenException(
+        'Você só pode alterar o seu próprio cadastro.',
+      );
     }
   }
 }

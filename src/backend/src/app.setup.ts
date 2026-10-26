@@ -4,6 +4,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { erroDeValidacao } from './common/erros.js';
 
 /** Configuracao comum ao main.ts e aos testes e2e. */
 export function configurarApp(app: INestApplication) {
@@ -12,6 +13,7 @@ export function configurarApp(app: INestApplication) {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: erroDeValidacao,
     }),
   );
   // Aplica os @Exclude() das entidades (ex.: senha nunca vai na resposta).

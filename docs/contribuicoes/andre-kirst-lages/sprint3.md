@@ -1,2 +1,2 @@
 Revisão CRUDs e Frontend
-Toturial tecnologias
+Tutorial tecnologias

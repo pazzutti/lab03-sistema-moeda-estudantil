@@ -208,6 +208,32 @@ export function CampoSelecao({
   );
 }
 
+export function CampoTexto({
+  rotulo,
+  obrigatorio,
+  erro,
+  dica,
+  className,
+  ...textarea
+}: PropsCampo & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const id = useId();
+  return (
+    <div className={className}>
+      <Rotulo htmlFor={id} obrigatorio={obrigatorio}>
+        {rotulo}
+      </Rotulo>
+      <textarea
+        id={id}
+        aria-invalid={!!erro}
+        aria-describedby={`${id}-ajuda`}
+        className={estiloInput(erro)}
+        {...textarea}
+      />
+      <Ajuda id={`${id}-ajuda`} erro={erro} dica={dica} />
+    </div>
+  );
+}
+
 function Rotulo({
   htmlFor,
   obrigatorio,

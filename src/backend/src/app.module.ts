@@ -5,6 +5,9 @@ import { AlunosModule } from './alunos/alunos.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { EmpresasModule } from './empresas/empresas.module.js';
 import { InstituicoesModule } from './instituicoes/instituicoes.module.js';
+import { ProfessoresModule } from './professores/professores.module.js';
+import { SeedModule } from './seeds/seed.module.js';
+import { TransacoesModule } from './transacoes/transacoes.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
 
 @Module({
@@ -27,6 +30,9 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
     InstituicoesModule,
     AlunosModule,
     EmpresasModule,
+    ProfessoresModule,
+    TransacoesModule,
+    SeedModule,
   ],
 })
 export class AppModule {}

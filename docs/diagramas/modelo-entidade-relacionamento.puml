@@ -85,7 +85,7 @@ entity "envio_moedas" as envio {
   * id : INTEGER <<PK>>
   --
   * professor_id : INTEGER <<FK>>
-  * aluno_id : INTEGER <<FK>>
+  aluno_id : INTEGER <<FK, SET NULL ao excluir o aluno>>
   * data : TIMESTAMP
   * quantidade : INTEGER <<CHECK > 0>>
   * motivo : TEXT

@@ -34,7 +34,9 @@ export function useFormulario<T extends Record<string, string>>(
       value: valores[campo],
       erro: erros[campo],
       onChange: (
-        evento: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+        evento: React.ChangeEvent<
+          HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+        >,
       ) =>
         alterar(
           campo,

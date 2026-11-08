@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import {
   type UsuarioAutenticado,
   UsuarioLogado,
@@ -16,5 +16,11 @@ export class TransacoesController {
     @UsuarioLogado() usuario: UsuarioAutenticado,
   ) {
     return this.transacoesService.enviarMoedas(usuario, dto);
+  }
+
+  /** Extrato da conta do usuario logado (aluno ou professor). */
+  @Get('extrato')
+  consultarExtrato(@UsuarioLogado() usuario: UsuarioAutenticado) {
+    return this.transacoesService.consultarExtrato(usuario);
   }
 }

@@ -50,6 +50,25 @@ export interface Professor {
   saldo: number;
 }
 
+/** Linha do extrato (GET /transacoes/extrato); "id" so e unico por "tipo". */
+interface Movimentacao {
+  id: number;
+  /** ISO 8601, em UTC. */
+  data: string;
+  /** Sempre positiva; o "tipo" diz se entrou ou saiu da conta. */
+  quantidade: number;
+}
+
+export type ItemDoExtrato =
+  | (Movimentacao & { tipo: "ENVIO"; motivo: string; aluno: string | null })
+  | (Movimentacao & { tipo: "CREDITO_SEMESTRAL"; semestre: string })
+  | (Movimentacao & { tipo: "RECEBIMENTO"; motivo: string; professor: string });
+
+export interface Extrato {
+  saldo: number;
+  transacoes: ItemDoExtrato[];
+}
+
 export const NOME_DO_TIPO: Record<TipoUsuario, string> = {
   ALUNO: "Aluno",
   PROFESSOR: "Professor",

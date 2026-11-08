@@ -28,8 +28,9 @@ const PERMISSOES: Record<TipoUsuario, { liberado: string[]; embreve: string[] }>
         "Ver e editar o seu cadastro",
         "Excluir a sua conta",
         "Receber moedas dos professores",
+        "Consultar o extrato",
       ],
-      embreve: ["Consultar o extrato", "Trocar moedas por vantagens"],
+      embreve: ["Trocar moedas por vantagens"],
     },
     EMPRESA: {
       liberado: [
@@ -39,8 +40,8 @@ const PERMISSOES: Record<TipoUsuario, { liberado: string[]; embreve: string[] }>
       embreve: ["Cadastrar vantagens", "Conferir cupons de resgate"],
     },
     PROFESSOR: {
-      liberado: ["Enviar moedas aos alunos"],
-      embreve: ["Consultar o extrato"],
+      liberado: ["Enviar moedas aos alunos", "Consultar o extrato"],
+      embreve: [],
     },
   };
 

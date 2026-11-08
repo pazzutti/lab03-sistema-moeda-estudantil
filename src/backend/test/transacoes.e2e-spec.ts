@@ -266,4 +266,146 @@ describe('Transacoes (e2e)', () => {
       { motivo: 'Monitoria', aluno: null },
     ]);
   });
+
+  describe('extrato', () => {
+    const extrato = (token: string) =>
+      http().get('/transacoes/extrato').set('Authorization', token);
+
+    it('mostra ao professor o saldo, os envios e o credito semestral, do mais recente ao mais antigo', async () => {
+      const { aluno, tokenProfessor } = await cenario();
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 100,
+        motivo: 'Primeiro',
+      }).expect(201);
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 50,
+        motivo: 'Segundo',
+      }).expect(201);
+
+      const { body } = await extrato(tokenProfessor).expect(200);
+
+      expect(body.saldo).toBe(850);
+      expect(body.transacoes).toEqual([
+        {
+          tipo: 'ENVIO',
+          id: expect.any(Number),
+          data: expect.any(String),
+          quantidade: 50,
+          motivo: 'Segundo',
+          aluno: 'Maria Silva',
+        },
+        expect.objectContaining({ tipo: 'ENVIO', motivo: 'Primeiro' }),
+        {
+          tipo: 'CREDITO_SEMESTRAL',
+          id: expect.any(Number),
+          data: expect.any(String),
+          quantidade: 1000,
+          semestre: expect.stringMatching(/^\d{4}\.[12]$/),
+        },
+      ]);
+      const datas = body.transacoes.map((t: { data: string }) =>
+        Date.parse(t.data),
+      );
+      expect(datas).toEqual([...datas].sort((a, b) => b - a));
+    });
+
+    it('mostra ao aluno o saldo e so as moedas que ele recebeu', async () => {
+      const { aluno, tokenAluno, tokenProfessor } = await cenario();
+      const { body: joao } = await http()
+        .post('/alunos')
+        .send({
+          ...alunoValido,
+          login: 'joao',
+          email: 'joao@email.com',
+          nome: 'João Pereira',
+          cpf: '111.444.777-35',
+        })
+        .expect(201);
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 30,
+        motivo: 'Monitoria',
+      }).expect(201);
+      await enviar(tokenProfessor, {
+        alunoId: joao.id,
+        quantidade: 70,
+        motivo: 'Para o João',
+      }).expect(201);
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 20,
+        motivo: 'Seminário',
+      }).expect(201);
+
+      const { body } = await extrato(tokenAluno).expect(200);
+
+      expect(body.saldo).toBe(50);
+      expect(body.transacoes).toEqual([
+        {
+          tipo: 'RECEBIMENTO',
+          id: expect.any(Number),
+          data: expect.any(String),
+          quantidade: 20,
+          motivo: 'Seminário',
+          professor: 'Ana Souza',
+        },
+        expect.objectContaining({ tipo: 'RECEBIMENTO', motivo: 'Monitoria' }),
+      ]);
+    });
+
+    it('nao mistura o extrato de professores diferentes', async () => {
+      const { aluno, tokenProfessor } = await cenario();
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 10,
+        motivo: 'Só da Ana',
+      }).expect(201);
+
+      const { body } = await extrato(await logar('prof.carlos')).expect(200);
+
+      expect(body.saldo).toBe(1000);
+      expect(body.transacoes).toMatchObject([{ tipo: 'CREDITO_SEMESTRAL' }]);
+    });
+
+    it('mantem o envio no extrato do professor quando o aluno exclui a conta', async () => {
+      const { aluno, tokenAluno, tokenProfessor } = await cenario();
+      await enviar(tokenProfessor, {
+        alunoId: aluno.id,
+        quantidade: 5,
+        motivo: 'Monitoria',
+      }).expect(201);
+      await http()
+        .delete(`/alunos/${aluno.id}`)
+        .set('Authorization', tokenAluno)
+        .expect(204);
+
+      const { body } = await extrato(tokenProfessor).expect(200);
+
+      expect(body.transacoes[0]).toMatchObject({
+        tipo: 'ENVIO',
+        motivo: 'Monitoria',
+        aluno: null,
+      });
+      // O token do aluno ainda e valido, mas a conta nao existe mais.
+      await extrato(tokenAluno).expect(404);
+    });
+
+    it('bloqueia empresas e quem nao esta logado', async () => {
+      await http()
+        .post('/empresas')
+        .send({
+          login: 'restaurante',
+          senha: 'senha123',
+          email: 'contato@restaurante.com',
+          nome: 'Restaurante Universitario',
+          cnpj: '11.222.333/0001-81',
+        })
+        .expect(201);
+
+      await extrato(await logar('restaurante')).expect(403);
+      await http().get('/transacoes/extrato').expect(401);
+    });
+  });
 });

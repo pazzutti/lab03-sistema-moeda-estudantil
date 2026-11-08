@@ -28,6 +28,11 @@ export const senha: Regra = (valor) =>
 export const senhaOpcional: Regra = (valor) =>
   valor === "" ? undefined : senha(valor);
 
+export const inteiroPositivo: Regra = (valor) =>
+  /^[0-9]+$/.test(valor.trim()) && Number(valor) > 0
+    ? undefined
+    : "Informe um número inteiro maior que zero.";
+
 export function validar<T extends Record<string, string>>(
   valores: T,
   regras: Partial<Record<keyof T, Regra[]>>,

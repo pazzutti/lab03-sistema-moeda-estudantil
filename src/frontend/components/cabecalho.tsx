@@ -16,6 +16,7 @@ interface ItemMenu {
 
 const MENU_LOGADO: ItemMenu[] = [
   { href: "/painel", rotulo: "Painel" },
+  { href: "/enviar-moedas", rotulo: "Enviar moedas", tipos: ["PROFESSOR"] },
   { href: "/perfil", rotulo: "Meu perfil", tipos: ["ALUNO", "EMPRESA"] },
 ];
 

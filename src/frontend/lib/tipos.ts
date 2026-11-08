@@ -40,6 +40,16 @@ export interface EmpresaParceira {
   cnpj: string;
 }
 
+export interface Professor {
+  id: number;
+  usuario: Credenciais;
+  instituicao: Instituicao;
+  nome: string;
+  cpf: string;
+  departamento: string;
+  saldo: number;
+}
+
 export const NOME_DO_TIPO: Record<TipoUsuario, string> = {
   ALUNO: "Aluno",
   PROFESSOR: "Professor",

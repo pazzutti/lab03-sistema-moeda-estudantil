@@ -36,8 +36,9 @@ const PERMISSOES: Record<TipoUsuario, { liberado: string[]; embreve: string[] }>
       liberado: [
         "Ver e editar o cadastro da empresa",
         "Excluir a conta da empresa",
+        "Cadastrar e gerenciar vantagens",
       ],
-      embreve: ["Cadastrar vantagens", "Conferir cupons de resgate"],
+      embreve: ["Conferir cupons de resgate"],
     },
     PROFESSOR: {
       liberado: ["Enviar moedas aos alunos", "Consultar o extrato"],

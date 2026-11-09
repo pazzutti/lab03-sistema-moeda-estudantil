@@ -9,6 +9,7 @@ import { ProfessoresModule } from './professores/professores.module.js';
 import { SeedModule } from './seeds/seed.module.js';
 import { TransacoesModule } from './transacoes/transacoes.module.js';
 import { UsuariosModule } from './usuarios/usuarios.module.js';
+import { VantagensModule } from './vantagens/vantagens.module.js';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { UsuariosModule } from './usuarios/usuarios.module.js';
     EmpresasModule,
     ProfessoresModule,
     TransacoesModule,
+    VantagensModule,
     SeedModule,
   ],
 })

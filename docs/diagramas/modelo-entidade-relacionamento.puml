@@ -75,7 +75,7 @@ entity "vantagem" as vantagem {
   * empresa_id : INTEGER <<FK>>
   * nome : VARCHAR(120)
   * descricao : TEXT
-  * foto : VARCHAR(255)
+  * foto : VARCHAR(500) <<URL da imagem>>
   * custo : INTEGER <<CHECK > 0>>
   * ativa : BOOLEAN = true
 }

@@ -50,6 +50,19 @@ export interface Professor {
   saldo: number;
 }
 
+/** Vantagem oferecida por uma empresa parceira (GET /vantagens). */
+export interface Vantagem {
+  id: number;
+  empresa: EmpresaParceira;
+  nome: string;
+  descricao: string;
+  /** URL da imagem. */
+  foto: string;
+  /** Custo em moedas. */
+  custo: number;
+  ativa: boolean;
+}
+
 /** Linha do extrato (GET /transacoes/extrato); "id" so e unico por "tipo". */
 interface Movimentacao {
   id: number;

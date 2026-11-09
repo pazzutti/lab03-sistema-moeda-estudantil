@@ -1,0 +1,40 @@
+@startuml diagrama_de_sequencia
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - Enviar moedas (UC06 / UC07)
+' Fonte versionada em docs/diagramas/diagrama-de-sequencia.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Professor
+participant Frontend
+participant "TransacoesController" as Controller
+participant "TransacoesService" as Service
+participant "NotificacoesService" as Notificacoes
+database "Banco de Dados" as BD
+participant "Serviço de Email" as Email <<sistema externo>>
+
+Professor -> Frontend : informa aluno, quantidade e motivo
+Frontend -> Controller : POST /transacoes/envios
+Controller -> Service : enviarMoedas(usuario, dto)
+
+Service -> BD : busca aluno e professor
+BD --> Service : aluno, professor
+
+alt saldo suficiente
+  Service -> BD : debita professor, credita aluno e registra envio
+  BD --> Service : commit
+  Service ->> Notificacoes : notificarEnvioDeMoedas(dados)
+  Service --> Controller : envio e saldo atualizado
+  Controller --> Frontend : 201 Created
+  Frontend --> Professor : exibe confirmação
+  Notificacoes ->> Email : email para professor e aluno
+else saldo insuficiente
+  Service --> Controller : BadRequestException
+  Controller --> Frontend : 400 Bad Request
+  Frontend --> Professor : exibe erro de saldo
+end
+
+@enduml

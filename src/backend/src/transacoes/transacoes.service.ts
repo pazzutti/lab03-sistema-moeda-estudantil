@@ -4,15 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { Aluno } from '../alunos/aluno.entity.js';
 import { UsuarioAutenticado } from '../auth/auth.decorators.js';
+import { gerarCodigoCupom } from '../common/cupom.js';
 import { NotificacoesService } from '../notificacoes/notificacoes.service.js';
 import { Professor } from '../professores/professor.entity.js';
 import { TipoUsuario } from '../usuarios/usuario.entity.js';
+import { Vantagem } from '../vantagens/vantagem.entity.js';
 import { CreditoSemestral } from './credito-semestral.entity.js';
 import { EnviarMoedasDto } from './dto/enviar-moedas.dto.js';
+import { ResgatarVantagemDto } from './dto/resgatar-vantagem.dto.js';
 import { EnvioMoedas } from './envio-moedas.entity.js';
+import { Resgate } from './resgate.entity.js';
 
 interface Movimentacao {
   /** Unico apenas dentro do mesmo "tipo": cada tipo vem de uma tabela. */
@@ -43,14 +47,55 @@ export interface RecebimentoNoExtrato extends Movimentacao {
   professor: string;
 }
 
+/** Vantagem que o aluno trocou por moedas (saida, HU06/HU08). */
+export interface ResgateNoExtrato extends Movimentacao {
+  tipo: 'RESGATE';
+  codigo: string;
+  /** Nulos se a empresa excluiu a conta, levando a vantagem junto. */
+  vantagem: string | null;
+  empresa: string | null;
+}
+
 export type ItemDoExtrato =
-  | EnvioNoExtrato
-  | CreditoNoExtrato
-  | RecebimentoNoExtrato;
+  EnvioNoExtrato | CreditoNoExtrato | RecebimentoNoExtrato | ResgateNoExtrato;
 
 export interface Extrato {
   saldo: number;
   transacoes: ItemDoExtrato[];
+}
+
+/** Item da lista de vantagens resgatadas pelo aluno. */
+export interface ResgateDoAluno {
+  id: number;
+  data: Date;
+  /** Custo pago no resgate, mesmo que a empresa mude o preco depois. */
+  quantidade: number;
+  codigo: string;
+  /** Nula se a empresa excluiu a conta, levando a vantagem junto. */
+  vantagem: {
+    id: number;
+    nome: string;
+    descricao: string;
+    foto: string;
+    empresa: string;
+  } | null;
+}
+
+function resgateDoAluno(resgate: Resgate): ResgateDoAluno {
+  const { vantagem } = resgate;
+  return {
+    id: resgate.id,
+    data: resgate.data,
+    quantidade: resgate.quantidade,
+    codigo: resgate.codigoCupom,
+    vantagem: vantagem && {
+      id: vantagem.id,
+      nome: vantagem.nome,
+      descricao: vantagem.descricao,
+      foto: vantagem.foto,
+      empresa: vantagem.empresa.nome,
+    },
+  };
 }
 
 /**
@@ -155,6 +200,84 @@ export class TransacoesService {
   }
 
   /**
+   * Debita o custo do aluno e registra o resgate com um codigo de cupom novo,
+   * na mesma transacao do banco (HU08). Depois do commit, o mesmo codigo vai
+   * por email ao aluno e a empresa (HU15).
+   */
+  async resgatarVantagem(
+    usuario: UsuarioAutenticado,
+    dto: ResgatarVantagemDto,
+  ): Promise<ResgateDoAluno & { saldo: number }> {
+    this.garantirAluno(usuario, 'Apenas alunos podem resgatar vantagens.');
+
+    const { resgate, aluno, vantagem } = await this.dataSource.transaction(
+      async (manager) => {
+        const vantagem = await manager.findOneBy(Vantagem, {
+          id: dto.vantagemId,
+          ativa: true,
+        });
+        if (!vantagem) {
+          throw new NotFoundException('Vantagem não encontrada.');
+        }
+        const aluno = await manager.findOneBy(Aluno, { id: usuario.id });
+        if (!aluno) {
+          throw new NotFoundException('Aluno não encontrado.');
+        }
+
+        // Como no envio de moedas, a condicao no UPDATE impede saldo
+        // negativo em resgates simultaneos.
+        const { affected } = await manager
+          .createQueryBuilder()
+          .update(Aluno)
+          .set({ saldo: () => 'saldo - :custo' })
+          .where('usuario_id = :id AND saldo >= :custo', {
+            id: aluno.id,
+            custo: vantagem.custo,
+          })
+          .execute();
+        if (!affected) {
+          throw new BadRequestException(
+            `Saldo insuficiente: você tem ${aluno.saldo} moedas e a vantagem custa ${vantagem.custo}.`,
+          );
+        }
+
+        const resgate = await manager.save(
+          manager.create(Resgate, {
+            aluno,
+            vantagem,
+            quantidade: vantagem.custo,
+            codigoCupom: await this.codigoCupomNovo(manager),
+          }),
+        );
+        aluno.saldo -= vantagem.custo;
+        return { resgate, aluno, vantagem };
+      },
+    );
+
+    // Sem await: os emails saem em fila e nao devem atrasar a resposta.
+    void this.notificacoes.notificarResgate({
+      aluno: { nome: aluno.nome, email: aluno.usuario.email },
+      empresa: {
+        nome: vantagem.empresa.nome,
+        email: vantagem.empresa.usuario.email,
+      },
+      vantagem: vantagem.nome,
+      custo: resgate.quantidade,
+      codigo: resgate.codigoCupom,
+      saldoAluno: aluno.saldo,
+    });
+
+    return { ...resgateDoAluno(resgate), saldo: aluno.saldo };
+  }
+
+  /** Vantagens que o aluno logado resgatou, da mais recente a mais antiga. */
+  async listarResgates(usuario: UsuarioAutenticado): Promise<ResgateDoAluno[]> {
+    this.garantirAluno(usuario, 'Apenas alunos possuem vantagens resgatadas.');
+    const resgates = await this.resgatesDoAluno(usuario.id);
+    return resgates.map(resgateDoAluno);
+  }
+
+  /**
    * Saldo atual e movimentacoes do usuario logado (HU06/HU10): o professor ve
    * os envios e os creditos semestrais (HU16); o aluno, as moedas recebidas.
    */
@@ -225,12 +348,22 @@ export class TransacoesService {
       loadEagerRelations: false,
       order: MAIS_RECENTES,
     });
+    const resgates = await this.resgatesDoAluno(id);
 
-    // Quando o resgate de vantagens (HU08) existir, os resgates entram aqui
-    // como mais uma lista, com tipo 'RESGATE'.
     return {
       saldo: aluno.saldo,
+      // Resgates antes dos recebimentos: num empate de data, o resgate
+      // aparece como o mais recente, pois sao as moedas recebidas que o pagam.
       transacoes: maisRecentesPrimeiro(
+        resgates.map((resgate) => ({
+          tipo: 'RESGATE',
+          id: resgate.id,
+          data: resgate.data,
+          quantidade: resgate.quantidade,
+          codigo: resgate.codigoCupom,
+          vantagem: resgate.vantagem?.nome ?? null,
+          empresa: resgate.vantagem?.empresa.nome ?? null,
+        })),
         recebimentos.map((envio) => ({
           tipo: 'RECEBIMENTO',
           id: envio.id,
@@ -241,5 +374,33 @@ export class TransacoesService {
         })),
       ),
     };
+  }
+
+  /** Sem as relacoes eager de aluno e empresa: so os nomes sao usados. */
+  private resgatesDoAluno(id: number): Promise<Resgate[]> {
+    return this.dataSource.manager.find(Resgate, {
+      where: { aluno: { id } },
+      relations: { vantagem: { empresa: true } },
+      loadEagerRelations: false,
+      order: MAIS_RECENTES,
+    });
+  }
+
+  /**
+   * Sorteia ate achar um codigo livre. Com 29^8 combinacoes a repeticao e
+   * rarissima, mas o UNIQUE do banco transformaria ela num erro 500.
+   */
+  private async codigoCupomNovo(manager: EntityManager): Promise<string> {
+    let codigo: string;
+    do {
+      codigo = gerarCodigoCupom();
+    } while (await manager.existsBy(Resgate, { codigoCupom: codigo }));
+    return codigo;
+  }
+
+  private garantirAluno(usuario: UsuarioAutenticado, mensagem: string) {
+    if (usuario.tipo !== TipoUsuario.ALUNO) {
+      throw new ForbiddenException(mensagem);
+    }
   }
 }

@@ -75,12 +75,41 @@ interface Movimentacao {
 export type ItemDoExtrato =
   | (Movimentacao & { tipo: "ENVIO"; motivo: string; aluno: string | null })
   | (Movimentacao & { tipo: "CREDITO_SEMESTRAL"; semestre: string })
-  | (Movimentacao & { tipo: "RECEBIMENTO"; motivo: string; professor: string });
+  | (Movimentacao & { tipo: "RECEBIMENTO"; motivo: string; professor: string })
+  | (Movimentacao & {
+      tipo: "RESGATE";
+      codigo: string;
+      /** Nulos se a empresa excluiu a conta. */
+      vantagem: string | null;
+      empresa: string | null;
+    });
 
 export interface Extrato {
   saldo: number;
   transacoes: ItemDoExtrato[];
 }
+
+/** Vantagem resgatada pelo aluno (GET /transacoes/resgates). */
+export interface Resgate {
+  id: number;
+  /** ISO 8601, em UTC. */
+  data: string;
+  /** Moedas pagas, mesmo que a empresa tenha mudado o custo depois. */
+  quantidade: number;
+  /** Codigo do cupom, o mesmo enviado por email ao aluno e a empresa. */
+  codigo: string;
+  /** Nula se a empresa excluiu a conta. */
+  vantagem: {
+    id: number;
+    nome: string;
+    descricao: string;
+    foto: string;
+    empresa: string;
+  } | null;
+}
+
+/** Resposta de POST /transacoes/resgates: o resgate e o saldo restante. */
+export type ResultadoDoResgate = Resgate & { saldo: number };
 
 export const NOME_DO_TIPO: Record<TipoUsuario, string> = {
   ALUNO: "Aluno",

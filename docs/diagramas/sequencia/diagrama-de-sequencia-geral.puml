@@ -1,0 +1,131 @@
+@startuml diagrama_de_sequencia_geral
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia Geral - ciclo de vida da moeda (UC01-UC12)
+' Fonte versionada em docs/diagramas/sequencia/diagrama-de-sequencia-geral.puml
+' Visao de alto nivel; cada etapa esta detalhada no diagrama do UC
+' correspondente (ucXX-*.puml nesta mesma pasta).
+' =====================================================================
+
+skinparam shadowing false
+skinparam sequenceMessageAlign center
+autonumber
+
+actor Aluno
+actor Professor
+actor "Empresa Parceira" as Empresa
+participant "Frontend\n(Next.js)" as Frontend
+participant "AuthGuard\n(JWT)" as Guard
+participant "API\n(Controllers + Services)" as API
+database "Banco de Dados" as BD
+participant "Mailtrap" as Mailtrap <<sistema externo>>
+
+== 1. Cadastro (UC01 / UC02) ==
+Aluno -> Frontend : preenche cadastro de aluno
+Frontend -> API : GET /instituicoes (pública)
+API -> BD : lista instituições
+BD --> API : instituições
+API --> Frontend : instituições
+Frontend -> API : POST /alunos (pública)
+API -> BD : valida CPF, login e email únicos;\ngrava usuário (bcrypt) e aluno (saldo 0)
+API --> Frontend : 201 Created
+
+Empresa -> Frontend : preenche cadastro de empresa
+Frontend -> API : POST /empresas (pública)
+API -> BD : valida CNPJ, login e email únicos;\ngrava usuário e empresa
+API --> Frontend : 201 Created
+
+== 2. Login (UC03) ==
+note over Aluno, Empresa : Aluno, Professor e Empresa usam o mesmo fluxo
+Professor -> Frontend : informa login e senha
+Frontend -> API : POST /auth/login (pública)
+API -> BD : busca usuário e compara hash (bcrypt)
+alt credenciais válidas
+  API --> Frontend : 200 { accessToken, tipo }
+  Frontend -> Frontend : guarda sessão
+else inválidas
+  API --> Frontend : 401 "Login ou senha inválidos."
+end
+
+note over Frontend, API : Daqui em diante toda requisição leva\nAuthorization: Bearer <token> e passa pelo AuthGuard
+Frontend -> Guard : requisição autenticada
+Guard -> Guard : verifyAsync(token)
+alt token inválido ou expirado
+  Guard --> Frontend : 401 → volta para o login
+else válido
+  Guard -> API : segue com request.usuario
+end
+
+== 3. Recarga semestral do professor (UC12) ==
+API -> API : agendador (boot + a cada 1h)\ncreditarSemestre(agora)
+opt 1ª semana de fevereiro ou agosto
+  loop para cada professor sem crédito no semestre
+    API -> BD : registra CreditoSemestral e soma 1.000 moedas
+  end
+end
+
+== 4. Empresa cadastra vantagens (UC11) ==
+Empresa -> Frontend : cadastra vantagem (nome, descrição, foto, custo)
+Frontend -> API : POST /vantagens
+API -> BD : grava vantagem ativa da empresa
+API --> Frontend : 201 Created
+
+== 5. Professor envia moedas (UC06 + UC07) ==
+Professor -> Frontend : escolhe aluno, quantidade e motivo
+Frontend -> API : POST /transacoes/envios
+group transação do banco
+  API -> BD : verifica mesma instituição e debita professor\n(WHERE saldo >= qtd)
+  alt saldo insuficiente ou outra instituição
+    API --> Frontend : 400 / 403
+    Frontend --> Professor : exibe erro
+  else ok
+    API -> BD : credita aluno e registra envio
+    BD --> API : commit
+    API --> Frontend : 201 envio + novo saldo
+    Frontend --> Professor : confirmação
+    API ->> Mailtrap : emails assíncronos (sem await)
+    Mailtrap ->> Aluno : "Você recebeu moedas" + motivo
+    Mailtrap ->> Professor : confirmação do envio
+  end
+end
+
+== 6. Consulta de extrato (UC05) ==
+Aluno -> Frontend : abre /extrato
+Frontend -> API : GET /transacoes/extrato
+API -> BD : saldo + moedas recebidas + resgates\n(professor: envios + créditos semestrais)
+API --> Frontend : extrato
+Frontend --> Aluno : exibe saldo e histórico
+
+== 7. Aluno consulta e resgata vantagem (UC08 + UC09 + UC10) ==
+Aluno -> Frontend : abre /vantagens
+Frontend -> API : GET /vantagens
+API -> BD : lista vantagens ativas
+API --> Frontend : vantagens
+Aluno -> Frontend : "Resgatar" e confirma
+Frontend -> API : POST /transacoes/resgates { vantagemId }
+group transação do banco
+  API -> BD : debita aluno (WHERE saldo >= custo)
+  alt saldo insuficiente / vantagem inexistente
+    API --> Frontend : 400 / 404
+    Frontend --> Aluno : exibe erro
+  else ok
+    API -> API : gera código de cupom único
+    API -> BD : registra resgate com código
+    BD --> API : commit
+    API --> Frontend : 201 código + novo saldo
+    Frontend --> Aluno : exibe cupom
+    API ->> Mailtrap : emails assíncronos (sem await)
+    Mailtrap ->> Aluno : cupom com código
+    Mailtrap ->> Empresa : aviso de resgate com código\n(mesmo código, para conferência)
+  end
+end
+Aluno -> Empresa : apresenta o código do cupom (troca presencial)
+Empresa -> Empresa : confere com o email de conferência
+
+== 8. Manutenção de conta (UC04) ==
+Aluno -> Frontend : edita perfil ou exclui conta
+Frontend -> API : PATCH / DELETE /alunos/:id (ou /empresas/:id)
+API -> BD : atualiza ou remove (somente o próprio usuário)
+API --> Frontend : 200 / 204
+
+@enduml

@@ -33,6 +33,14 @@ export const inteiroPositivo: Regra = (valor) =>
     ? undefined
     : "Informe um número inteiro maior que zero.";
 
+export const url: Regra = (valor) => {
+  try {
+    const { protocol } = new URL(valor.trim());
+    if (protocol === "http:" || protocol === "https:") return undefined;
+  } catch {}
+  return "Informe o endereço (URL) de uma imagem, começando com http.";
+};
+
 export function validar<T extends Record<string, string>>(
   valores: T,
   regras: Partial<Record<keyof T, Regra[]>>,

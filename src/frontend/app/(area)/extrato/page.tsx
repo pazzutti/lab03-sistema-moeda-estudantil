@@ -43,7 +43,7 @@ function ConteudoExtrato() {
         descricao={
           professor
             ? "Envios aos alunos e créditos semestrais, do mais recente ao mais antigo."
-            : "Moedas recebidas dos professores, da mais recente à mais antiga."
+            : "Moedas recebidas dos professores e vantagens resgatadas, da mais recente à mais antiga."
         }
       >
         {extrato.transacoes.length === 0 ? (
@@ -84,6 +84,12 @@ function descrever(item: ItemDoExtrato) {
         titulo: `Recebido de ${item.professor}`,
         detalhe: item.motivo,
         entrada: true,
+      };
+    case "RESGATE":
+      return {
+        titulo: `Resgate: ${item.vantagem ?? "vantagem indisponível"}`,
+        detalhe: `${item.empresa ?? "Empresa que saiu do programa"} · Cupom ${item.codigo}`,
+        entrada: false,
       };
   }
 }

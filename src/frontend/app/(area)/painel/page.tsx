@@ -29,15 +29,19 @@ const PERMISSOES: Record<TipoUsuario, { liberado: string[]; embreve: string[] }>
         "Excluir a sua conta",
         "Receber moedas dos professores",
         "Consultar o extrato",
+        "Trocar moedas por vantagens",
+        "Consultar as vantagens resgatadas e os cupons",
       ],
-      embreve: ["Trocar moedas por vantagens"],
+      embreve: [],
     },
     EMPRESA: {
       liberado: [
         "Ver e editar o cadastro da empresa",
         "Excluir a conta da empresa",
+        "Cadastrar e gerenciar vantagens",
+        "Receber por email o cupom de cada resgate, para conferir a troca",
       ],
-      embreve: ["Cadastrar vantagens", "Conferir cupons de resgate"],
+      embreve: [],
     },
     PROFESSOR: {
       liberado: ["Enviar moedas aos alunos", "Consultar o extrato"],

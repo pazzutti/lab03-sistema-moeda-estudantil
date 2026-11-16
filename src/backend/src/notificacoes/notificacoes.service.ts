@@ -51,6 +51,48 @@ export class NotificacoesService {
     ]);
   }
 
+  /**
+   * Cupom para o aluno (HU08) e conferencia para a empresa (HU15), com o
+   * mesmo codigo. Tambem chamado depois do commit, como o envio de moedas.
+   */
+  async notificarResgate(dados: {
+    aluno: Destinatario;
+    empresa: Destinatario;
+    vantagem: string;
+    custo: number;
+    codigo: string;
+    saldoAluno: number;
+  }): Promise<void> {
+    const { aluno, empresa, vantagem, custo, codigo, saldoAluno } = dados;
+
+    await Promise.all([
+      this.enviarSemFalhar({
+        para: aluno,
+        assunto: `Seu cupom ${codigo}: ${vantagem}`,
+        html: emailTemplates.cupomAluno({
+          nomeAluno: aluno.nome,
+          nomeVantagem: vantagem,
+          nomeEmpresa: empresa.nome,
+          custo,
+          codigo,
+          saldo: saldoAluno,
+        }),
+      }),
+      this.enviarSemFalhar({
+        para: empresa,
+        // O codigo no assunto facilita achar o email na hora da conferencia.
+        assunto: `Resgate para conferir: cupom ${codigo}`,
+        html: emailTemplates.conferenciaEmpresa({
+          nomeEmpresa: empresa.nome,
+          nomeAluno: aluno.nome,
+          nomeVantagem: vantagem,
+          custo,
+          codigo,
+        }),
+      }),
+    ]);
+  }
+
   private async enviarSemFalhar(email: Email): Promise<void> {
     try {
       await this.emailService.enviar(email);

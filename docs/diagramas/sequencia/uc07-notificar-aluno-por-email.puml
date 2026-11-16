@@ -1,0 +1,52 @@
+@startuml uc07_notificar_aluno_por_email
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC07 Notificar aluno por email (HU05)
+' Fonte versionada em docs/diagramas/sequencia/uc07-notificar-aluno-por-email.puml
+' Incluido por UC06: roda depois do commit do envio de moedas
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+participant "TransacoesService" as Transacoes
+participant "NotificacoesService" as Notificacoes
+participant "emailTemplates" as Templates
+participant "EmailService" as EmailSrv
+participant "Mailtrap" as Mailtrap <<sistema externo>>
+actor Aluno
+actor Professor
+
+Transacoes ->> Notificacoes : notificarEnvioDeMoedas(professor, aluno,\nquantidade, motivo, saldoProfessor)
+
+par email do aluno
+  Notificacoes -> Templates : recebimentoAluno(professor, quantidade, motivo)
+  Templates --> Notificacoes : html
+  Notificacoes -> EmailSrv : enviar("Você recebeu moedas de ...")
+else email de confirmação do professor
+  Notificacoes -> Templates : confirmacaoProfessor(aluno, quantidade, motivo, saldo)
+  Templates --> Notificacoes : html
+  Notificacoes -> EmailSrv : enviar("Confirmação do seu envio de moedas")
+end
+
+loop para cada email (fila com intervalo do Mailtrap)
+  alt MAILTRAP_API_TOKEN configurado
+    EmailSrv -> Mailtrap : client.send(email)
+    alt entregue
+      Mailtrap --> EmailSrv : ok
+    else falha
+      Mailtrap --> EmailSrv : erro
+      EmailSrv --> Notificacoes : erro
+      Notificacoes -> Notificacoes : registra no log\n(não desfaz o envio de moedas)
+    end
+  else ambiente local sem token
+    EmailSrv -> EmailSrv : escreve o email no log [DEV MAIL]
+  end
+end
+
+opt emails entregues
+  Mailtrap ->> Aluno : email com professor, quantidade e motivo
+  Mailtrap ->> Professor : email de confirmação com saldo
+end
+
+@enduml

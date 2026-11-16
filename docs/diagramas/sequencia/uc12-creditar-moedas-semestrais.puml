@@ -1,0 +1,49 @@
+@startuml uc12_creditar_moedas_semestrais
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC12 Creditar moedas semestrais (HU16)
+' Fonte versionada em docs/diagramas/sequencia/uc12-creditar-moedas-semestrais.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor "Agendador\n(setInterval 1h)" as Agendador <<sistema>>
+participant "ProfessoresService" as Service
+participant "semestre.ts" as Semestre
+database "Banco de Dados" as BD
+
+note over Agendador : Executa ao iniciar a aplicação\n(onApplicationBootstrap) e depois a cada hora
+
+Agendador -> Service : creditarSemestre(agora)
+Service -> Semestre : semestreDaRecarga(agora)
+
+alt fora da 1ª semana de fevereiro ou agosto
+  Semestre --> Service : null
+  Service --> Agendador : nada a fazer
+else dentro da janela de recarga
+  Semestre --> Service : "AAAA.1" ou "AAAA.2"
+  Service -> BD : lista professores
+  BD --> Service : professores
+
+  loop para cada professor
+    group transação do banco
+      Service -> BD : já recebeu crédito neste semestre?
+      BD --> Service : resultado
+      alt já recebeu
+        Service -> Service : ignora (crédito único por semestre)
+      else ainda não recebeu
+        Service -> BD : registra CreditoSemestral (1.000 moedas)
+        Service -> BD : soma 1.000 ao saldo (acumulável)
+        BD --> Service : commit
+      end
+    end
+  end
+  Service --> Agendador : concluído
+end
+
+opt erro em alguma verificação
+  Agendador -> Agendador : registra "Falha na recarga semestral" no log\ne tenta de novo na próxima hora
+end
+
+@enduml

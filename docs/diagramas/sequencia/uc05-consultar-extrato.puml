@@ -1,0 +1,47 @@
+@startuml uc05_consultar_extrato
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC05 Consultar extrato (HU06 / HU10)
+' Fonte versionada em docs/diagramas/sequencia/uc05-consultar-extrato.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor "Aluno / Professor" as Usuario
+participant Frontend
+participant "TransacoesController" as Controller
+participant "TransacoesService" as Service
+database "Banco de Dados" as BD
+
+Usuario -> Frontend : abre /extrato
+Frontend -> Controller : GET /transacoes/extrato
+Controller -> Service : consultarExtrato(usuario)
+
+alt usuário é professor
+  Service -> BD : busca professor (saldo)
+  BD --> Service : professor
+  Service -> BD : envios do professor (com aluno)
+  BD --> Service : envios
+  Service -> BD : créditos semestrais do professor
+  BD --> Service : créditos
+  Service -> Service : junta ENVIO + CREDITO_SEMESTRAL\nem ordem decrescente de data
+else usuário é aluno
+  Service -> BD : busca aluno (saldo)
+  BD --> Service : aluno
+  Service -> BD : moedas recebidas (com professor)
+  BD --> Service : recebimentos
+  Service -> BD : resgates (com vantagem e empresa)
+  BD --> Service : resgates
+  Service -> Service : junta RECEBIMENTO + RESGATE\nem ordem decrescente de data
+else empresa parceira
+  Service --> Controller : ForbiddenException
+  Controller --> Frontend : 403 Forbidden
+  Frontend --> Usuario : exibe erro
+end
+
+Service --> Controller : { saldo, transacoes }
+Controller --> Frontend : 200 OK
+Frontend --> Usuario : exibe saldo e histórico
+
+@enduml

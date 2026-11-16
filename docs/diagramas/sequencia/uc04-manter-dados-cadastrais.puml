@@ -1,0 +1,77 @@
+@startuml uc04_manter_dados_cadastrais
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC04 Manter dados cadastrais (HU04 / HU12)
+' Fonte versionada em docs/diagramas/sequencia/uc04-manter-dados-cadastrais.puml
+' O fluxo e o mesmo para aluno (/alunos) e empresa (/empresas);
+' o diagrama usa o aluno como exemplo.
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor "Aluno / Empresa" as Usuario
+participant Frontend
+participant "AlunosController\n(EmpresasController)" as Controller
+participant "AlunosService\n(EmpresasService)" as Service
+participant "UsuariosService" as Usuarios
+database "Banco de Dados" as BD
+
+== Visualizar ==
+Usuario -> Frontend : abre /perfil
+Frontend -> Controller : GET /alunos/{id}
+Controller -> Service : buscar(id)
+Service -> BD : busca aluno com usuário e instituição
+BD --> Service : aluno
+Service --> Controller : aluno
+Controller --> Frontend : 200 OK
+Frontend --> Usuario : exibe dados (CPF somente leitura)
+
+== Editar ==
+Usuario -> Frontend : altera campos e salva
+Frontend -> Controller : PATCH /alunos/{id}
+note right of Controller : UpdateAlunoDto não aceita CPF
+Controller -> Service : atualizar(id, dto, usuarioLogado)
+alt não é o próprio cadastro
+  Service --> Controller : ForbiddenException
+  Controller --> Frontend : 403 Forbidden
+  Frontend --> Usuario : exibe erro
+else próprio cadastro
+  group transação do banco
+    Service -> Usuarios : atualizar(manager, usuario, { email, senha })
+    Usuarios -> BD : email já em uso por outro usuário?
+    BD --> Usuarios : resultado
+    alt email em uso
+      Usuarios --> Service : ConflictException (email)
+      Service --> Controller : rollback
+      Controller --> Frontend : 409 Conflict
+      Frontend --> Usuario : exibe erro no campo email
+    else ok
+      Usuarios -> BD : salva usuário (nova senha com hash)
+      Service -> BD : salva perfil
+      BD --> Service : commit
+      Service --> Controller : aluno atualizado
+      Controller --> Frontend : 200 OK
+      Frontend --> Usuario : exibe confirmação
+    end
+  end
+end
+
+== Excluir ==
+Usuario -> Frontend : clica em "Excluir conta"
+Frontend --> Usuario : pede confirmação
+Usuario -> Frontend : confirma
+Frontend -> Controller : DELETE /alunos/{id}
+Controller -> Service : remover(id, usuarioLogado)
+Service -> Service : garante que é o próprio cadastro
+group transação do banco
+  Service -> BD : apaga aluno
+  Service -> BD : apaga usuário
+  BD --> Service : commit
+end
+Service --> Controller : ok
+Controller --> Frontend : 204 No Content
+Frontend -> Frontend : apaga sessão
+Frontend --> Usuario : redireciona para a página inicial
+
+@enduml

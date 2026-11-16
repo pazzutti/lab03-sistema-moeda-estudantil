@@ -1,0 +1,72 @@
+@startuml uc11_manter_vantagens
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC11 Manter vantagens (HU13 / HU14)
+' Fonte versionada em docs/diagramas/sequencia/uc11-manter-vantagens.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor "Empresa Parceira" as Empresa
+participant Frontend
+participant "VantagensController" as Controller
+participant "VantagensService" as Service
+database "Banco de Dados" as BD
+
+note over Controller, Service : Toda operação chama garantirEmpresa():\nusuário que não é empresa recebe 403 Forbidden
+
+== Listar minhas vantagens ==
+Empresa -> Frontend : abre /minhas-vantagens
+Frontend -> Controller : GET /vantagens/minhas
+Controller -> Service : listarDaEmpresa(usuario)
+Service -> BD : vantagens ativas da empresa
+BD --> Service : vantagens
+Service --> Controller : vantagens
+Controller --> Frontend : 200 OK
+Frontend --> Empresa : exibe lista
+
+== Cadastrar ==
+Empresa -> Frontend : nome, descrição, foto e custo
+Frontend -> Controller : POST /vantagens
+note right of Controller : ValidationPipe exige todos os campos\ne custo inteiro > 0 (senão 400)
+Controller -> Service : criar(dto, usuario)
+Service -> BD : insere vantagem ligada à empresa (ativa)
+BD --> Service : vantagem
+Service --> Controller : vantagem
+Controller --> Frontend : 201 Created
+Frontend --> Empresa : vantagem aparece na lista\n(e na listagem do UC08)
+
+== Editar ==
+Empresa -> Frontend : altera dados da vantagem
+Frontend -> Controller : PATCH /vantagens/{id}
+Controller -> Service : atualizar(id, dto, usuario)
+Service -> BD : busca vantagem ativa
+BD --> Service : vantagem ou nada
+alt não encontrada
+  Service --> Controller : NotFoundException
+  Controller --> Frontend : 404 Not Found
+else vantagem de outra empresa
+  Service --> Controller : ForbiddenException
+  Controller --> Frontend : 403 Forbidden
+else vantagem da própria empresa
+  Service -> BD : salva alterações
+  BD --> Service : ok
+  Service --> Controller : vantagem atualizada
+  Controller --> Frontend : 200 OK
+  Frontend --> Empresa : exibe confirmação
+end
+
+== Remover ==
+Empresa -> Frontend : clica em "Remover" e confirma
+Frontend -> Controller : DELETE /vantagens/{id}
+Controller -> Service : remover(id, usuario)
+Service -> BD : busca vantagem e confere a empresa
+BD --> Service : vantagem
+Service -> BD : UPDATE vantagem SET ativa = false\n(mantém o histórico de resgates)
+BD --> Service : ok
+Service --> Controller : ok
+Controller --> Frontend : 204 No Content
+Frontend --> Empresa : remove da lista
+
+@enduml

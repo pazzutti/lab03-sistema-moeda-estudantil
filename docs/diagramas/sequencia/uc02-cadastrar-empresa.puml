@@ -1,0 +1,52 @@
+@startuml uc02_cadastrar_empresa
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC02 Cadastrar-se como empresa parceira (HU11)
+' Fonte versionada em docs/diagramas/sequencia/uc02-cadastrar-empresa.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Visitante
+participant Frontend
+participant "EmpresasController" as Controller
+participant "EmpresasService" as Service
+participant "UsuariosService" as Usuarios
+database "Banco de Dados" as BD
+
+Visitante -> Frontend : nome, CNPJ, email, login e senha
+Frontend -> Controller : POST /empresas (rota pública)
+note right of Controller : ValidationPipe valida o DTO\n(formato de CNPJ e email)
+Controller -> Service : criar(dto)
+
+group transação do banco
+  Service -> BD : existe empresa com este CNPJ?
+  BD --> Service : resultado
+  alt CNPJ já cadastrado
+    Service --> Controller : ConflictException (cnpj)
+    Controller --> Frontend : 409 Conflict
+    Frontend --> Visitante : exibe erro no campo CNPJ
+  else CNPJ livre
+    Service -> Usuarios : criar(manager, dto, EMPRESA)
+    Usuarios -> BD : login ou email já em uso?
+    BD --> Usuarios : resultado
+    alt login ou email em uso
+      Usuarios --> Service : ConflictException (login/email)
+      Service --> Controller : rollback
+      Controller --> Frontend : 409 Conflict
+      Frontend --> Visitante : exibe erro no campo
+    else disponíveis
+      Usuarios -> BD : insere usuário (senha com hash bcrypt)
+      BD --> Usuarios : usuário
+      Usuarios --> Service : usuário
+      Service -> BD : insere empresa parceira
+      BD --> Service : commit
+      Service --> Controller : empresa cadastrada
+      Controller --> Frontend : 201 Created
+      Frontend --> Visitante : redireciona para o login
+    end
+  end
+end
+
+@enduml

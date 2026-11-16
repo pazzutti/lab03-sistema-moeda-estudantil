@@ -1,0 +1,41 @@
+@startuml uc08_consultar_vantagens
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC08 Consultar vantagens (HU07)
+' Fonte versionada em docs/diagramas/sequencia/uc08-consultar-vantagens.puml
+' Estendido por UC09 (uc09-resgatar-vantagem.puml)
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Aluno
+participant Frontend
+participant "VantagensController" as VantCtrl
+participant "VantagensService" as VantSrv
+participant "AlunosController" as AlunoCtrl
+database "Banco de Dados" as BD
+
+Aluno -> Frontend : abre /vantagens
+
+par vantagens
+  Frontend -> VantCtrl : GET /vantagens
+  VantCtrl -> VantSrv : listar()
+  VantSrv -> BD : vantagens ativas com empresa,\nordenadas por custo e nome
+  BD --> VantSrv : vantagens
+  VantSrv --> VantCtrl : vantagens
+  VantCtrl --> Frontend : 200 OK
+else saldo do aluno
+  Frontend -> AlunoCtrl : GET /alunos/{id}
+  AlunoCtrl -> BD : busca aluno
+  BD --> AlunoCtrl : aluno
+  AlunoCtrl --> Frontend : 200 OK (saldo)
+end
+
+Frontend --> Aluno : exibe cartões com nome, descrição, foto,\ncusto e empresa; marca as que o saldo não cobre
+
+opt aluno escolhe uma vantagem
+  ref over Aluno, BD : UC09 - Resgatar vantagem
+end
+
+@enduml

@@ -1,0 +1,62 @@
+@startuml uc06_enviar_moedas
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC06 Enviar moedas (HU09)
+' Fonte versionada em docs/diagramas/sequencia/uc06-enviar-moedas.puml
+' Inclui UC07 (detalhado em uc07-notificar-aluno-por-email.puml)
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Professor
+participant Frontend
+participant "TransacoesController" as Controller
+participant "TransacoesService" as Service
+participant "NotificacoesService" as Notificacoes
+database "Banco de Dados" as BD
+
+== Carregar formulário ==
+Professor -> Frontend : abre /enviar-moedas
+Frontend -> Controller : GET /alunos
+Controller --> Frontend : lista de alunos
+Frontend --> Professor : exibe formulário
+
+== Enviar ==
+Professor -> Frontend : informa aluno, quantidade e motivo
+Frontend -> Controller : POST /transacoes/envios
+note right of Controller : ValidationPipe exige quantidade > 0\ne motivo preenchido
+Controller -> Service : enviarMoedas(usuario, dto)
+
+alt usuário não é professor
+  Service --> Controller : ForbiddenException
+  Controller --> Frontend : 403 Forbidden
+else professor
+  group transação do banco
+    Service -> BD : busca aluno e professor
+    BD --> Service : aluno, professor
+    alt aluno de outra instituição
+      Service --> Controller : ForbiddenException
+      Controller --> Frontend : 403 Forbidden
+      Frontend --> Professor : exibe erro
+    else mesma instituição
+      Service -> BD : UPDATE professor SET saldo = saldo - qtd\nWHERE saldo >= qtd
+      BD --> Service : linhas afetadas
+      alt saldo insuficiente (0 linhas)
+        Service --> Controller : BadRequestException
+        Controller --> Frontend : 400 Bad Request
+        Frontend --> Professor : exibe erro no campo quantidade
+      else debitado
+        Service -> BD : credita aluno
+        Service -> BD : registra envio (quantidade, motivo)
+        BD --> Service : commit
+        Service ->> Notificacoes : notificarEnvioDeMoedas(dados)\n(sem await, ver UC07)
+        Service --> Controller : envio e saldo atualizado
+        Controller --> Frontend : 201 Created
+        Frontend --> Professor : exibe confirmação e novo saldo
+      end
+    end
+  end
+end
+
+@enduml

@@ -1,0 +1,57 @@
+@startuml uc03_realizar_login
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC03 Realizar login (HU01 / HU02)
+' Fonte versionada em docs/diagramas/sequencia/uc03-realizar-login.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor "Usuário" as Usuario
+participant Frontend
+participant "AuthGuard" as Guard
+participant "AuthController" as Controller
+participant "UsuariosService" as Usuarios
+participant "JwtService" as Jwt
+database "Banco de Dados" as BD
+
+== Login ==
+Usuario -> Frontend : informa login e senha
+Frontend -> Controller : POST /auth/login (rota pública)
+Controller -> Usuarios : validarCredenciais(login, senha)
+Usuarios -> BD : busca usuário pelo login
+BD --> Usuarios : usuário ou nada
+Usuarios -> Usuarios : bcrypt.compare(senha, hash)
+
+alt credenciais válidas
+  Usuarios --> Controller : usuário
+  Controller -> Jwt : signAsync({ sub, login, tipo })
+  Jwt --> Controller : token
+  Controller --> Frontend : 200 OK { accessToken, tipo }
+  Frontend -> Frontend : guarda sessão no localStorage
+  Frontend --> Usuario : redireciona para o painel do perfil
+else login inexistente ou senha incorreta
+  Usuarios --> Controller : null
+  Controller --> Frontend : 401 "Login ou senha inválidos."
+  Frontend --> Usuario : exibe erro sem indicar o campo
+end
+
+== Acesso a rota protegida (qualquer requisição autenticada) ==
+Frontend -> Guard : requisição com Authorization: Bearer <token>
+Guard -> Jwt : verifyAsync(token)
+alt token válido
+  Jwt --> Guard : payload
+  Guard -> Controller : segue para o controller com request.usuario
+else token ausente ou expirado
+  Guard --> Frontend : 401 Unauthorized
+  Frontend -> Frontend : apaga sessão
+  Frontend --> Usuario : redireciona para o login\n("Sua sessão expirou")
+end
+
+== Logout ==
+Usuario -> Frontend : clica em "Sair"
+Frontend -> Frontend : apaga sessão do localStorage
+Frontend --> Usuario : redireciona para o login
+
+@enduml

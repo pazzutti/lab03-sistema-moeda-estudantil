@@ -1,0 +1,56 @@
+@startuml uc10_enviar_cupom_por_email
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC10 Enviar cupom por email (HU08 / HU15)
+' Fonte versionada em docs/diagramas/sequencia/uc10-enviar-cupom-por-email.puml
+' Incluido por UC09: roda depois do commit do resgate
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+participant "TransacoesService" as Transacoes
+participant "NotificacoesService" as Notificacoes
+participant "emailTemplates" as Templates
+participant "EmailService" as EmailSrv
+participant "Mailtrap" as Mailtrap <<sistema externo>>
+actor Aluno
+actor "Empresa Parceira" as Empresa
+
+Transacoes ->> Notificacoes : notificarResgate(aluno, empresa, vantagem,\ncusto, codigo, saldoAluno)
+
+par cupom do aluno
+  Notificacoes -> Templates : cupomAluno(vantagem, empresa, custo, codigo, saldo)
+  Templates --> Notificacoes : html
+  Notificacoes -> EmailSrv : enviar("Seu cupom {codigo}: {vantagem}")
+else conferência da empresa
+  Notificacoes -> Templates : conferenciaEmpresa(aluno, vantagem, custo, codigo)
+  Templates --> Notificacoes : html
+  Notificacoes -> EmailSrv : enviar("Resgate para conferir: cupom {codigo}")
+end
+
+loop para cada email (fila com intervalo do Mailtrap)
+  alt MAILTRAP_API_TOKEN configurado
+    EmailSrv -> Mailtrap : client.send(email)
+    alt entregue
+      Mailtrap --> EmailSrv : ok
+    else falha
+      Mailtrap --> EmailSrv : erro
+      EmailSrv --> Notificacoes : erro
+      Notificacoes -> Notificacoes : registra no log\n(não desfaz o resgate)
+    end
+  else ambiente local sem token
+    EmailSrv -> EmailSrv : escreve o email no log [DEV MAIL]
+  end
+end
+
+opt emails entregues
+  Mailtrap ->> Aluno : email com o código do cupom
+  Mailtrap ->> Empresa : email com o mesmo código,\nnome do aluno e vantagem
+end
+
+== Troca presencial ==
+Aluno -> Empresa : apresenta o código do cupom
+Empresa -> Empresa : confere com o código do email de conferência
+
+@enduml

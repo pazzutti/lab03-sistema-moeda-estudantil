@@ -1,0 +1,60 @@
+@startuml uc09_resgatar_vantagem
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC09 Resgatar vantagem (HU08)
+' Fonte versionada em docs/diagramas/sequencia/uc09-resgatar-vantagem.puml
+' Inclui UC10 (detalhado em uc10-enviar-cupom-por-email.puml)
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Aluno
+participant Frontend
+participant "TransacoesController" as Controller
+participant "TransacoesService" as Service
+participant "NotificacoesService" as Notificacoes
+database "Banco de Dados" as BD
+
+Aluno -> Frontend : clica em "Resgatar" e confirma
+Frontend -> Controller : POST /transacoes/resgates { vantagemId }
+Controller -> Service : resgatarVantagem(usuario, dto)
+
+alt usuário não é aluno
+  Service --> Controller : ForbiddenException
+  Controller --> Frontend : 403 Forbidden
+else aluno
+  group transação do banco
+    Service -> BD : busca vantagem ativa
+    BD --> Service : vantagem ou nada
+    alt vantagem inexistente ou removida
+      Service --> Controller : NotFoundException
+      Controller --> Frontend : 404 Not Found
+      Frontend --> Aluno : exibe erro
+    else vantagem ativa
+      Service -> BD : busca aluno
+      BD --> Service : aluno
+      Service -> BD : UPDATE aluno SET saldo = saldo - custo\nWHERE saldo >= custo
+      BD --> Service : linhas afetadas
+      alt saldo insuficiente (0 linhas)
+        Service --> Controller : BadRequestException
+        Controller --> Frontend : 400 Bad Request
+        Frontend --> Aluno : exibe erro de saldo
+      else debitado
+        loop até achar código livre
+          Service -> Service : gerarCodigoCupom()
+          Service -> BD : código já existe?
+          BD --> Service : resultado
+        end
+        Service -> BD : registra resgate (custo, código do cupom)
+        BD --> Service : commit
+        Service ->> Notificacoes : notificarResgate(dados)\n(sem await, ver UC10)
+        Service --> Controller : resgate, código e saldo
+        Controller --> Frontend : 201 Created
+        Frontend --> Aluno : exibe código do cupom e novo saldo
+      end
+    end
+  end
+end
+
+@enduml

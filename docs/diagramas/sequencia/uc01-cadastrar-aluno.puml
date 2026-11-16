@@ -1,0 +1,67 @@
+@startuml uc01_cadastrar_aluno
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Sequencia - UC01 Cadastrar-se como aluno (HU03)
+' Fonte versionada em docs/diagramas/sequencia/uc01-cadastrar-aluno.puml
+' =====================================================================
+
+skinparam shadowing false
+autonumber
+
+actor Visitante
+participant Frontend
+participant "InstituicoesController" as InstCtrl
+participant "AlunosController" as Controller
+participant "AlunosService" as Service
+participant "InstituicoesService" as InstService
+participant "UsuariosService" as Usuarios
+database "Banco de Dados" as BD
+
+== Carregar formulário ==
+Visitante -> Frontend : abre /cadastro/aluno
+Frontend -> InstCtrl : GET /instituicoes (rota pública)
+InstCtrl -> BD : lista instituições
+BD --> InstCtrl : instituições
+InstCtrl --> Frontend : 200 OK
+Frontend --> Visitante : exibe formulário com lista de instituições
+
+== Enviar cadastro ==
+Visitante -> Frontend : nome, email, CPF, RG, endereço,\ninstituição, curso, login e senha
+Frontend -> Controller : POST /alunos (rota pública)
+note right of Controller : ValidationPipe valida o DTO\n(formato de CPF e email)
+Controller -> Service : criar(dto)
+Service -> InstService : buscar(instituicaoId)
+InstService -> BD : busca instituição
+BD --> InstService : instituição
+InstService --> Service : instituição
+
+group transação do banco
+  Service -> BD : existe aluno com este CPF?
+  BD --> Service : resultado
+  alt CPF já cadastrado
+    Service --> Controller : ConflictException (cpf)
+    Controller --> Frontend : 409 Conflict
+    Frontend --> Visitante : exibe erro no campo CPF
+  else CPF livre
+    Service -> Usuarios : criar(manager, dto, ALUNO)
+    Usuarios -> BD : login ou email já em uso?
+    BD --> Usuarios : resultado
+    alt login ou email em uso
+      Usuarios --> Service : ConflictException (login/email)
+      Service --> Controller : rollback
+      Controller --> Frontend : 409 Conflict
+      Frontend --> Visitante : exibe erro no campo
+    else disponíveis
+      Usuarios -> BD : insere usuário (senha com hash bcrypt)
+      BD --> Usuarios : usuário
+      Usuarios --> Service : usuário
+      Service -> BD : insere aluno (saldo = 0)
+      BD --> Service : commit
+      Service --> Controller : aluno cadastrado
+      Controller --> Frontend : 201 Created
+      Frontend --> Visitante : redireciona para o login
+    end
+  end
+end
+
+@enduml

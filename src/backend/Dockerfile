@@ -20,7 +20,7 @@ FROM node:24-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-# Banco SQLite fica em /app/data; monte um volume ali para persistir os dados.
+# Banco SQLite fica em /app/data.
 ENV DB_DATABASE=/app/data/moeda.sqlite
 
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
@@ -29,7 +29,6 @@ COPY --chown=node:node package.json ./
 RUN mkdir -p /app/data && chown node:node /app/data
 
 USER node
-# Sem instrucao VOLUME: o Railway nao aceita. Monte o volume externamente
-# (Railway Volume ou docker-compose) em /app/data.
+# Persistencia: monte /app/data externamente (Railway ou docker-compose).
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

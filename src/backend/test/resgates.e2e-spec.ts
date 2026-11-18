@@ -168,7 +168,8 @@ describe('Resgates (e2e)', () => {
 
     const { body } = await resgatar(tokenAluno, vantagem.id).expect(201);
 
-    expect(enviarEmail).toHaveBeenCalledTimes(2);
+    // Os emails saem depois da resposta, apos gerar o QR Code.
+    await vi.waitFor(() => expect(enviarEmail).toHaveBeenCalledTimes(2));
     const emails = enviarEmail.mock.calls.map(([email]) => email);
     const paraAluno = emails.find((e) => e.para.email === 'maria@email.com');
     const paraEmpresa = emails.find(
@@ -182,6 +183,7 @@ describe('Resgates (e2e)', () => {
     expect(paraEmpresa.html).toContain(body.codigo);
     expect(paraEmpresa.html).toContain('Maria Silva');
     expect(paraEmpresa.assunto).toContain(body.codigo);
+
     for (const email of [paraAluno, paraEmpresa]) {
       expect(email.html).toContain('Café &amp; &lt;pão&gt;');
       expect(email.html).not.toContain('<pão>');

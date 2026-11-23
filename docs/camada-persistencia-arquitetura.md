@@ -20,7 +20,8 @@ O backend segue o [diagrama de componentes](diagramas/diagrama_de_componentes.pn
 flowchart LR
     UI["Interface Web"] -- "HTTP + JSON" --> A["Apresentação<br/>Controllers, AuthGuard, DTOs"]
     A --> N["Negócio<br/>Services"]
-    N --> P["Persistência<br/>Entidades + Repository (TypeORM)"]
+    N --> R["Repository<br/>Repository&lt;T&gt; (TypeORM)"]
+    R --> P["Persistência<br/>Entidades (TypeORM)"]
     P --> BD[("SQLite")]
 ```
 
@@ -28,7 +29,8 @@ flowchart LR
 | --- | --- |
 | Apresentação | Recebe a requisição, exige o token JWT (exceto nas rotas `@Public()`) e valida os dados de entrada com DTOs |
 | Negócio | Aplica as regras das histórias de usuário: dados únicos, hash de senha, cada usuário só edita o próprio cadastro |
-| Persistência | Mapeia as classes para tabelas e executa as consultas; os services não escrevem SQL |
+| Repository | Executa as consultas e gravações (`find`, `save`, `delete`) pelo `Repository<T>` injetado em cada service; os services não escrevem SQL |
+| Persistência | Entidades que mapeiam as classes para as tabelas do banco |
 
 Cada funcionalidade é um módulo do NestJS (`alunos/`, `empresas/`, `usuarios/`, `instituicoes/`, `auth/`) com o seu controller, service, entidade e DTOs.
 

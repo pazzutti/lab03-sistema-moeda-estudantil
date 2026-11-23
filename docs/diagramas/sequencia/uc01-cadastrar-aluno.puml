@@ -15,13 +15,22 @@ participant "AlunosController" as Controller
 participant "AlunosService" as Service
 participant "InstituicoesService" as InstService
 participant "UsuariosService" as Usuarios
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Instituicao>" as InstRepo
+  participant "Repository<Aluno>" as AlunoRepo
+  participant "Repository<Usuario>" as UsuarioRepo
+end box
 database "Banco de Dados" as BD
 
 == Carregar formulário ==
 Visitante -> Frontend : abre /cadastro/aluno
 Frontend -> InstCtrl : GET /instituicoes (rota pública)
-InstCtrl -> BD : lista instituições
-BD --> InstCtrl : instituições
+InstCtrl -> InstService : listar()
+InstService -> InstRepo : find({ order: nome })
+InstRepo -> BD : SELECT instituicao
+BD --> InstRepo : linhas
+InstRepo --> InstService : instituições
+InstService --> InstCtrl : instituições
 InstCtrl --> Frontend : 200 OK
 Frontend --> Visitante : exibe formulário com lista de instituições
 
@@ -31,32 +40,47 @@ Frontend -> Controller : POST /alunos (rota pública)
 note right of Controller : ValidationPipe valida o DTO\n(formato de CPF e email)
 Controller -> Service : criar(dto)
 Service -> InstService : buscar(instituicaoId)
-InstService -> BD : busca instituição
-BD --> InstService : instituição
+InstService -> InstRepo : findOneBy({ id })
+InstRepo -> BD : SELECT instituicao
+BD --> InstRepo : linha
+InstRepo --> InstService : instituição
 InstService --> Service : instituição
 
-group transação do banco
-  Service -> BD : existe aluno com este CPF?
-  BD --> Service : resultado
+group transação do banco (EntityManager)
+  note over AlunoRepo, UsuarioRepo : Dentro da transação os repositórios\nvêm do EntityManager da transação
+  Service -> AlunoRepo : existsBy({ cpf })
+  AlunoRepo -> BD : SELECT aluno
+  BD --> AlunoRepo : resultado
+  AlunoRepo --> Service : true / false
   alt CPF já cadastrado
     Service --> Controller : ConflictException (cpf)
     Controller --> Frontend : 409 Conflict
     Frontend --> Visitante : exibe erro no campo CPF
   else CPF livre
     Service -> Usuarios : criar(manager, dto, ALUNO)
-    Usuarios -> BD : login ou email já em uso?
-    BD --> Usuarios : resultado
+    Usuarios -> UsuarioRepo : existsBy({ login }) / existsBy({ email })
+    UsuarioRepo -> BD : SELECT usuario
+    BD --> UsuarioRepo : resultado
+    UsuarioRepo --> Usuarios : true / false
     alt login ou email em uso
       Usuarios --> Service : ConflictException (login/email)
       Service --> Controller : rollback
       Controller --> Frontend : 409 Conflict
       Frontend --> Visitante : exibe erro no campo
     else disponíveis
-      Usuarios -> BD : insere usuário (senha com hash bcrypt)
-      BD --> Usuarios : usuário
+      Usuarios -> Usuarios : bcrypt.hash(senha)
+      Usuarios -> UsuarioRepo : save(usuario)
+      UsuarioRepo -> BD : INSERT usuario
+      BD --> UsuarioRepo : id
+      UsuarioRepo --> Usuarios : usuário
       Usuarios --> Service : usuário
-      Service -> BD : insere aluno (saldo = 0)
+      Service -> AlunoRepo : insert(aluno, saldo = 0)
+      AlunoRepo -> BD : INSERT aluno
       BD --> Service : commit
+      Service -> AlunoRepo : findOneBy({ id })
+      AlunoRepo -> BD : SELECT aluno
+      BD --> AlunoRepo : linha
+      AlunoRepo --> Service : aluno
       Service --> Controller : aluno cadastrado
       Controller --> Frontend : 201 Created
       Frontend --> Visitante : redireciona para o login

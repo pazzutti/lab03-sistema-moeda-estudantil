@@ -14,14 +14,19 @@ participant "AuthGuard" as Guard
 participant "AuthController" as Controller
 participant "UsuariosService" as Usuarios
 participant "JwtService" as Jwt
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Usuario>" as UsuarioRepo
+end box
 database "Banco de Dados" as BD
 
 == Login ==
 Usuario -> Frontend : informa login e senha
 Frontend -> Controller : POST /auth/login (rota pública)
 Controller -> Usuarios : validarCredenciais(login, senha)
-Usuarios -> BD : busca usuário pelo login
-BD --> Usuarios : usuário ou nada
+Usuarios -> UsuarioRepo : findOneBy({ login })
+UsuarioRepo -> BD : SELECT usuario WHERE login = ?
+BD --> UsuarioRepo : linha ou nada
+UsuarioRepo --> Usuarios : usuário ou null
 Usuarios -> Usuarios : bcrypt.compare(senha, hash)
 
 alt credenciais válidas

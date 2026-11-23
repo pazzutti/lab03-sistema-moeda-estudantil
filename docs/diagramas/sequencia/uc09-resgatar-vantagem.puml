@@ -14,6 +14,11 @@ participant Frontend
 participant "TransacoesController" as Controller
 participant "TransacoesService" as Service
 participant "NotificacoesService" as Notificacoes
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Vantagem>" as VantRepo
+  participant "Repository<Aluno>" as AlunoRepo
+  participant "Repository<Resgate>" as ResgateRepo
+end box
 database "Banco de Dados" as BD
 
 Aluno -> Frontend : clica em "Resgatar" e confirma
@@ -24,18 +29,24 @@ alt usuário não é aluno
   Service --> Controller : ForbiddenException
   Controller --> Frontend : 403 Forbidden
 else aluno
-  group transação do banco
-    Service -> BD : busca vantagem ativa
-    BD --> Service : vantagem ou nada
+  group transação do banco (EntityManager)
+    Service -> VantRepo : findOneBy({ id, ativa: true })
+    VantRepo -> BD : SELECT vantagem
+    BD --> VantRepo : linha ou nada
+    VantRepo --> Service : vantagem ou null
     alt vantagem inexistente ou removida
       Service --> Controller : NotFoundException
       Controller --> Frontend : 404 Not Found
       Frontend --> Aluno : exibe erro
     else vantagem ativa
-      Service -> BD : busca aluno
-      BD --> Service : aluno
-      Service -> BD : UPDATE aluno SET saldo = saldo - custo\nWHERE saldo >= custo
-      BD --> Service : linhas afetadas
+      Service -> AlunoRepo : findOneBy({ id })
+      AlunoRepo -> BD : SELECT aluno
+      BD --> AlunoRepo : linha
+      AlunoRepo --> Service : aluno
+      Service -> AlunoRepo : createQueryBuilder().update()\nsaldo = saldo - custo WHERE saldo >= custo
+      AlunoRepo -> BD : UPDATE aluno
+      BD --> AlunoRepo : linhas afetadas
+      AlunoRepo --> Service : affected
       alt saldo insuficiente (0 linhas)
         Service --> Controller : BadRequestException
         Controller --> Frontend : 400 Bad Request
@@ -43,10 +54,13 @@ else aluno
       else debitado
         loop até achar código livre
           Service -> Service : gerarCodigoCupom()
-          Service -> BD : código já existe?
-          BD --> Service : resultado
+          Service -> ResgateRepo : existsBy({ codigoCupom })
+          ResgateRepo -> BD : SELECT resgate
+          BD --> ResgateRepo : resultado
+          ResgateRepo --> Service : true / false
         end
-        Service -> BD : registra resgate (custo, código do cupom)
+        Service -> ResgateRepo : save(resgate: custo, código do cupom)
+        ResgateRepo -> BD : INSERT resgate
         BD --> Service : commit
         Service ->> Notificacoes : notificarResgate(dados)\n(sem await, ver UC10)
         Service --> Controller : resgate, código e saldo

@@ -13,6 +13,10 @@ participant Frontend
 participant "EmpresasController" as Controller
 participant "EmpresasService" as Service
 participant "UsuariosService" as Usuarios
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<EmpresaParceira>" as EmpresaRepo
+  participant "Repository<Usuario>" as UsuarioRepo
+end box
 database "Banco de Dados" as BD
 
 Visitante -> Frontend : nome, CNPJ, email, login e senha
@@ -20,28 +24,41 @@ Frontend -> Controller : POST /empresas (rota pública)
 note right of Controller : ValidationPipe valida o DTO\n(formato de CNPJ e email)
 Controller -> Service : criar(dto)
 
-group transação do banco
-  Service -> BD : existe empresa com este CNPJ?
-  BD --> Service : resultado
+group transação do banco (EntityManager)
+  note over EmpresaRepo, UsuarioRepo : Dentro da transação os repositórios\nvêm do EntityManager da transação
+  Service -> EmpresaRepo : existsBy({ cnpj })
+  EmpresaRepo -> BD : SELECT empresa_parceira
+  BD --> EmpresaRepo : resultado
+  EmpresaRepo --> Service : true / false
   alt CNPJ já cadastrado
     Service --> Controller : ConflictException (cnpj)
     Controller --> Frontend : 409 Conflict
     Frontend --> Visitante : exibe erro no campo CNPJ
   else CNPJ livre
     Service -> Usuarios : criar(manager, dto, EMPRESA)
-    Usuarios -> BD : login ou email já em uso?
-    BD --> Usuarios : resultado
+    Usuarios -> UsuarioRepo : existsBy({ login }) / existsBy({ email })
+    UsuarioRepo -> BD : SELECT usuario
+    BD --> UsuarioRepo : resultado
+    UsuarioRepo --> Usuarios : true / false
     alt login ou email em uso
       Usuarios --> Service : ConflictException (login/email)
       Service --> Controller : rollback
       Controller --> Frontend : 409 Conflict
       Frontend --> Visitante : exibe erro no campo
     else disponíveis
-      Usuarios -> BD : insere usuário (senha com hash bcrypt)
-      BD --> Usuarios : usuário
+      Usuarios -> Usuarios : bcrypt.hash(senha)
+      Usuarios -> UsuarioRepo : save(usuario)
+      UsuarioRepo -> BD : INSERT usuario
+      BD --> UsuarioRepo : id
+      UsuarioRepo --> Usuarios : usuário
       Usuarios --> Service : usuário
-      Service -> BD : insere empresa parceira
+      Service -> EmpresaRepo : insert(empresa)
+      EmpresaRepo -> BD : INSERT empresa_parceira
       BD --> Service : commit
+      Service -> EmpresaRepo : findOneBy({ id })
+      EmpresaRepo -> BD : SELECT empresa_parceira
+      BD --> EmpresaRepo : linha
+      EmpresaRepo --> Service : empresa
       Service --> Controller : empresa cadastrada
       Controller --> Frontend : 201 Created
       Frontend --> Visitante : redireciona para o login

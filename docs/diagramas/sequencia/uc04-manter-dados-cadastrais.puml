@@ -15,14 +15,20 @@ participant Frontend
 participant "AlunosController\n(EmpresasController)" as Controller
 participant "AlunosService\n(EmpresasService)" as Service
 participant "UsuariosService" as Usuarios
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Aluno>\n(Repository<EmpresaParceira>)" as PerfilRepo
+  participant "Repository<Usuario>" as UsuarioRepo
+end box
 database "Banco de Dados" as BD
 
 == Visualizar ==
 Usuario -> Frontend : abre /perfil
 Frontend -> Controller : GET /alunos/{id}
 Controller -> Service : buscar(id)
-Service -> BD : busca aluno com usuário e instituição
-BD --> Service : aluno
+Service -> PerfilRepo : findOneBy({ id })
+PerfilRepo -> BD : SELECT aluno JOIN usuario, instituicao
+BD --> PerfilRepo : linha
+PerfilRepo --> Service : aluno
 Service --> Controller : aluno
 Controller --> Frontend : 200 OK
 Frontend --> Usuario : exibe dados (CPF somente leitura)
@@ -37,18 +43,26 @@ alt não é o próprio cadastro
   Controller --> Frontend : 403 Forbidden
   Frontend --> Usuario : exibe erro
 else próprio cadastro
-  group transação do banco
+  Service -> PerfilRepo : findOneBy({ id })
+  PerfilRepo -> BD : SELECT aluno
+  BD --> PerfilRepo : linha
+  PerfilRepo --> Service : aluno
+  group transação do banco (EntityManager)
     Service -> Usuarios : atualizar(manager, usuario, { email, senha })
-    Usuarios -> BD : email já em uso por outro usuário?
-    BD --> Usuarios : resultado
+    Usuarios -> UsuarioRepo : existsBy({ email, id != atual })
+    UsuarioRepo -> BD : SELECT usuario
+    BD --> UsuarioRepo : resultado
+    UsuarioRepo --> Usuarios : true / false
     alt email em uso
       Usuarios --> Service : ConflictException (email)
       Service --> Controller : rollback
       Controller --> Frontend : 409 Conflict
       Frontend --> Usuario : exibe erro no campo email
     else ok
-      Usuarios -> BD : salva usuário (nova senha com hash)
-      Service -> BD : salva perfil
+      Usuarios -> UsuarioRepo : save(usuario) (nova senha com hash)
+      UsuarioRepo -> BD : UPDATE usuario
+      Service -> PerfilRepo : save(aluno)
+      PerfilRepo -> BD : UPDATE aluno
       BD --> Service : commit
       Service --> Controller : aluno atualizado
       Controller --> Frontend : 200 OK
@@ -64,9 +78,13 @@ Usuario -> Frontend : confirma
 Frontend -> Controller : DELETE /alunos/{id}
 Controller -> Service : remover(id, usuarioLogado)
 Service -> Service : garante que é o próprio cadastro
-group transação do banco
-  Service -> BD : apaga aluno
-  Service -> BD : apaga usuário
+Service -> PerfilRepo : findOneBy({ id })
+PerfilRepo --> Service : aluno
+group transação do banco (EntityManager)
+  Service -> PerfilRepo : delete({ id })
+  PerfilRepo -> BD : DELETE aluno
+  Service -> UsuarioRepo : delete({ id })
+  UsuarioRepo -> BD : DELETE usuario
   BD --> Service : commit
 end
 Service --> Controller : ok

@@ -12,6 +12,9 @@ actor "Empresa Parceira" as Empresa
 participant Frontend
 participant "VantagensController" as Controller
 participant "VantagensService" as Service
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Vantagem>" as Repo
+end box
 database "Banco de Dados" as BD
 
 note over Controller, Service : Toda operação chama garantirEmpresa():\nusuário que não é empresa recebe 403 Forbidden
@@ -20,8 +23,10 @@ note over Controller, Service : Toda operação chama garantirEmpresa():\nusuár
 Empresa -> Frontend : abre /minhas-vantagens
 Frontend -> Controller : GET /vantagens/minhas
 Controller -> Service : listarDaEmpresa(usuario)
-Service -> BD : vantagens ativas da empresa
-BD --> Service : vantagens
+Service -> Repo : find({ ativa: true, empresa: id })
+Repo -> BD : SELECT vantagem
+BD --> Repo : linhas
+Repo --> Service : vantagens
 Service --> Controller : vantagens
 Controller --> Frontend : 200 OK
 Frontend --> Empresa : exibe lista
@@ -31,8 +36,10 @@ Empresa -> Frontend : nome, descrição, foto e custo
 Frontend -> Controller : POST /vantagens
 note right of Controller : ValidationPipe exige todos os campos\ne custo inteiro > 0 (senão 400)
 Controller -> Service : criar(dto, usuario)
-Service -> BD : insere vantagem ligada à empresa (ativa)
-BD --> Service : vantagem
+Service -> Repo : save(create({ ...dto, empresa }))
+Repo -> BD : INSERT vantagem (ativa)
+BD --> Repo : id
+Repo --> Service : vantagem
 Service --> Controller : vantagem
 Controller --> Frontend : 201 Created
 Frontend --> Empresa : vantagem aparece na lista\n(e na listagem do UC08)
@@ -41,8 +48,10 @@ Frontend --> Empresa : vantagem aparece na lista\n(e na listagem do UC08)
 Empresa -> Frontend : altera dados da vantagem
 Frontend -> Controller : PATCH /vantagens/{id}
 Controller -> Service : atualizar(id, dto, usuario)
-Service -> BD : busca vantagem ativa
-BD --> Service : vantagem ou nada
+Service -> Repo : findOneBy({ id, ativa: true })
+Repo -> BD : SELECT vantagem
+BD --> Repo : linha ou nada
+Repo --> Service : vantagem ou null
 alt não encontrada
   Service --> Controller : NotFoundException
   Controller --> Frontend : 404 Not Found
@@ -50,8 +59,10 @@ else vantagem de outra empresa
   Service --> Controller : ForbiddenException
   Controller --> Frontend : 403 Forbidden
 else vantagem da própria empresa
-  Service -> BD : salva alterações
-  BD --> Service : ok
+  Service -> Repo : save(vantagem alterada)
+  Repo -> BD : UPDATE vantagem
+  BD --> Repo : ok
+  Repo --> Service : vantagem
   Service --> Controller : vantagem atualizada
   Controller --> Frontend : 200 OK
   Frontend --> Empresa : exibe confirmação
@@ -61,10 +72,15 @@ end
 Empresa -> Frontend : clica em "Remover" e confirma
 Frontend -> Controller : DELETE /vantagens/{id}
 Controller -> Service : remover(id, usuario)
-Service -> BD : busca vantagem e confere a empresa
-BD --> Service : vantagem
-Service -> BD : UPDATE vantagem SET ativa = false\n(mantém o histórico de resgates)
-BD --> Service : ok
+Service -> Repo : findOneBy({ id, ativa: true })
+Repo -> BD : SELECT vantagem
+BD --> Repo : linha
+Repo --> Service : vantagem
+Service -> Service : confere a empresa
+Service -> Repo : update({ id }, { ativa: false })
+Repo -> BD : UPDATE vantagem SET ativa = false\n(mantém o histórico de resgates)
+BD --> Repo : ok
+Repo --> Service : ok
 Service --> Controller : ok
 Controller --> Frontend : 204 No Content
 Frontend --> Empresa : remove da lista

@@ -11,15 +11,25 @@ autonumber
 
 actor Professor
 participant Frontend
+participant "AlunosController\n+ AlunosService" as Alunos
 participant "TransacoesController" as Controller
 participant "TransacoesService" as Service
 participant "NotificacoesService" as Notificacoes
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Aluno>" as AlunoRepo
+  participant "Repository<Professor>" as ProfRepo
+  participant "Repository<EnvioMoedas>" as EnvioRepo
+end box
 database "Banco de Dados" as BD
 
 == Carregar formulário ==
 Professor -> Frontend : abre /enviar-moedas
-Frontend -> Controller : GET /alunos
-Controller --> Frontend : lista de alunos
+Frontend -> Alunos : GET /alunos
+Alunos -> AlunoRepo : find({ order: nome })
+AlunoRepo -> BD : SELECT aluno
+BD --> AlunoRepo : linhas
+AlunoRepo --> Alunos : alunos
+Alunos --> Frontend : lista de alunos
 Frontend --> Professor : exibe formulário
 
 == Enviar ==
@@ -32,23 +42,33 @@ alt usuário não é professor
   Service --> Controller : ForbiddenException
   Controller --> Frontend : 403 Forbidden
 else professor
-  group transação do banco
-    Service -> BD : busca aluno e professor
-    BD --> Service : aluno, professor
+  group transação do banco (EntityManager)
+    Service -> AlunoRepo : findOneBy({ id: alunoId })
+    AlunoRepo -> BD : SELECT aluno
+    BD --> AlunoRepo : linha
+    AlunoRepo --> Service : aluno
+    Service -> ProfRepo : findOneByOrFail({ id })
+    ProfRepo -> BD : SELECT professor
+    BD --> ProfRepo : linha
+    ProfRepo --> Service : professor
     alt aluno de outra instituição
       Service --> Controller : ForbiddenException
       Controller --> Frontend : 403 Forbidden
       Frontend --> Professor : exibe erro
     else mesma instituição
-      Service -> BD : UPDATE professor SET saldo = saldo - qtd\nWHERE saldo >= qtd
-      BD --> Service : linhas afetadas
+      Service -> ProfRepo : createQueryBuilder().update()\nsaldo = saldo - qtd WHERE saldo >= qtd
+      ProfRepo -> BD : UPDATE professor
+      BD --> ProfRepo : linhas afetadas
+      ProfRepo --> Service : affected
       alt saldo insuficiente (0 linhas)
         Service --> Controller : BadRequestException
         Controller --> Frontend : 400 Bad Request
         Frontend --> Professor : exibe erro no campo quantidade
       else debitado
-        Service -> BD : credita aluno
-        Service -> BD : registra envio (quantidade, motivo)
+        Service -> AlunoRepo : increment(saldo, qtd)
+        AlunoRepo -> BD : UPDATE aluno
+        Service -> EnvioRepo : save(envio: quantidade, motivo)
+        EnvioRepo -> BD : INSERT envio_moedas
         BD --> Service : commit
         Service ->> Notificacoes : notificarEnvioDeMoedas(dados)\n(sem await, ver UC07)
         Service --> Controller : envio e saldo atualizado

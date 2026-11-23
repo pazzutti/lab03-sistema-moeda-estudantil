@@ -14,6 +14,11 @@ participant Frontend
 participant "VantagensController" as VantCtrl
 participant "VantagensService" as VantSrv
 participant "AlunosController" as AlunoCtrl
+participant "AlunosService" as AlunoSrv
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Vantagem>" as VantRepo
+  participant "Repository<Aluno>" as AlunoRepo
+end box
 database "Banco de Dados" as BD
 
 Aluno -> Frontend : abre /vantagens
@@ -21,14 +26,20 @@ Aluno -> Frontend : abre /vantagens
 par vantagens
   Frontend -> VantCtrl : GET /vantagens
   VantCtrl -> VantSrv : listar()
-  VantSrv -> BD : vantagens ativas com empresa,\nordenadas por custo e nome
-  BD --> VantSrv : vantagens
+  VantSrv -> VantRepo : find({ ativa: true },\norder: custo, nome)
+  VantRepo -> BD : SELECT vantagem JOIN empresa
+  BD --> VantRepo : linhas
+  VantRepo --> VantSrv : vantagens
   VantSrv --> VantCtrl : vantagens
   VantCtrl --> Frontend : 200 OK
 else saldo do aluno
   Frontend -> AlunoCtrl : GET /alunos/{id}
-  AlunoCtrl -> BD : busca aluno
-  BD --> AlunoCtrl : aluno
+  AlunoCtrl -> AlunoSrv : buscar(id)
+  AlunoSrv -> AlunoRepo : findOneBy({ id })
+  AlunoRepo -> BD : SELECT aluno
+  BD --> AlunoRepo : linha
+  AlunoRepo --> AlunoSrv : aluno
+  AlunoSrv --> AlunoCtrl : aluno
   AlunoCtrl --> Frontend : 200 OK (saldo)
 end
 

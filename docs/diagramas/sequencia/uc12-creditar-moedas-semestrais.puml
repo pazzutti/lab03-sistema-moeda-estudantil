@@ -11,6 +11,10 @@ autonumber
 actor "Agendador\n(setInterval 1h)" as Agendador <<sistema>>
 participant "ProfessoresService" as Service
 participant "semestre.ts" as Semestre
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Professor>" as ProfRepo
+  participant "Repository<CreditoSemestral>" as CreditoRepo
+end box
 database "Banco de Dados" as BD
 
 note over Agendador : Executa ao iniciar a aplicação\n(onApplicationBootstrap) e depois a cada hora
@@ -23,18 +27,24 @@ alt fora da 1ª semana de fevereiro ou agosto
   Service --> Agendador : nada a fazer
 else dentro da janela de recarga
   Semestre --> Service : "AAAA.1" ou "AAAA.2"
-  Service -> BD : lista professores
-  BD --> Service : professores
+  Service -> ProfRepo : find()
+  ProfRepo -> BD : SELECT professor
+  BD --> ProfRepo : linhas
+  ProfRepo --> Service : professores
 
   loop para cada professor
-    group transação do banco
-      Service -> BD : já recebeu crédito neste semestre?
-      BD --> Service : resultado
+    group transação do banco (EntityManager)
+      Service -> CreditoRepo : existsBy({ professor, semestre })
+      CreditoRepo -> BD : SELECT credito_semestral
+      BD --> CreditoRepo : resultado
+      CreditoRepo --> Service : true / false
       alt já recebeu
         Service -> Service : ignora (crédito único por semestre)
       else ainda não recebeu
-        Service -> BD : registra CreditoSemestral (1.000 moedas)
-        Service -> BD : soma 1.000 ao saldo (acumulável)
+        Service -> CreditoRepo : insert({ professor, semestre, 1.000 })
+        CreditoRepo -> BD : INSERT credito_semestral
+        Service -> ProfRepo : increment(saldo, 1.000) (acumulável)
+        ProfRepo -> BD : UPDATE professor
         BD --> Service : commit
       end
     end

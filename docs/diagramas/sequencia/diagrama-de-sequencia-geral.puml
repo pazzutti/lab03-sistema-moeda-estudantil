@@ -17,29 +17,38 @@ actor "Empresa Parceira" as Empresa
 participant "Frontend\n(Next.js)" as Frontend
 participant "AuthGuard\n(JWT)" as Guard
 participant "API\n(Controllers + Services)" as API
+participant "Repositories\n(TypeORM)" as Repo
 database "Banco de Dados" as BD
 participant "Mailtrap" as Mailtrap <<sistema externo>>
 
 == 1. Cadastro (UC01 / UC02) ==
 Aluno -> Frontend : preenche cadastro de aluno
 Frontend -> API : GET /instituicoes (pública)
-API -> BD : lista instituições
-BD --> API : instituições
+API -> Repo : Repository<Instituicao>.find()
+Repo -> BD : SELECT
+BD --> Repo : instituições
+Repo --> API : instituições
 API --> Frontend : instituições
 Frontend -> API : POST /alunos (pública)
-API -> BD : valida CPF, login e email únicos;\ngrava usuário (bcrypt) e aluno (saldo 0)
+API -> Repo : valida CPF, login e email únicos;\nsalva Usuario (bcrypt) e Aluno (saldo 0)
+Repo -> BD : SELECT / INSERT
 API --> Frontend : 201 Created
 
 Empresa -> Frontend : preenche cadastro de empresa
 Frontend -> API : POST /empresas (pública)
-API -> BD : valida CNPJ, login e email únicos;\ngrava usuário e empresa
+API -> Repo : valida CNPJ, login e email únicos;\nsalva Usuario e EmpresaParceira
+Repo -> BD : SELECT / INSERT
 API --> Frontend : 201 Created
 
 == 2. Login (UC03) ==
 note over Aluno, Empresa : Aluno, Professor e Empresa usam o mesmo fluxo
 Professor -> Frontend : informa login e senha
 Frontend -> API : POST /auth/login (pública)
-API -> BD : busca usuário e compara hash (bcrypt)
+API -> Repo : Repository<Usuario>.findOneBy({ login })
+Repo -> BD : SELECT
+BD --> Repo : usuário
+Repo --> API : usuário
+API -> API : compara hash (bcrypt)
 alt credenciais válidas
   API --> Frontend : 200 { accessToken, tipo }
   Frontend -> Frontend : guarda sessão
@@ -60,26 +69,32 @@ end
 API -> API : agendador (boot + a cada 1h)\ncreditarSemestre(agora)
 opt 1ª semana de fevereiro ou agosto
   loop para cada professor sem crédito no semestre
-    API -> BD : registra CreditoSemestral e soma 1.000 moedas
+    API -> Repo : insere CreditoSemestral e\nincrementa saldo do Professor (+1.000)
+    Repo -> BD : INSERT / UPDATE
   end
 end
 
 == 4. Empresa cadastra vantagens (UC11) ==
 Empresa -> Frontend : cadastra vantagem (nome, descrição, foto, custo)
 Frontend -> API : POST /vantagens
-API -> BD : grava vantagem ativa da empresa
+API -> Repo : Repository<Vantagem>.save()
+Repo -> BD : INSERT vantagem ativa
 API --> Frontend : 201 Created
 
 == 5. Professor envia moedas (UC06 + UC07) ==
 Professor -> Frontend : escolhe aluno, quantidade e motivo
 Frontend -> API : POST /transacoes/envios
-group transação do banco
-  API -> BD : verifica mesma instituição e debita professor\n(WHERE saldo >= qtd)
+group transação do banco (EntityManager)
+  API -> Repo : busca Aluno e Professor;\ndebita Professor (WHERE saldo >= qtd)
+  Repo -> BD : SELECT / UPDATE
+  BD --> Repo : linhas afetadas
+  Repo --> API : resultado
   alt saldo insuficiente ou outra instituição
     API --> Frontend : 400 / 403
     Frontend --> Professor : exibe erro
   else ok
-    API -> BD : credita aluno e registra envio
+    API -> Repo : incrementa saldo do Aluno;\nsalva EnvioMoedas
+    Repo -> BD : UPDATE / INSERT
     BD --> API : commit
     API --> Frontend : 201 envio + novo saldo
     Frontend --> Professor : confirmação
@@ -92,25 +107,33 @@ end
 == 6. Consulta de extrato (UC05) ==
 Aluno -> Frontend : abre /extrato
 Frontend -> API : GET /transacoes/extrato
-API -> BD : saldo + moedas recebidas + resgates\n(professor: envios + créditos semestrais)
+API -> Repo : saldo + EnvioMoedas recebidos + Resgates\n(professor: envios + CreditoSemestral)
+Repo -> BD : SELECT
+BD --> Repo : linhas
+Repo --> API : dados
 API --> Frontend : extrato
 Frontend --> Aluno : exibe saldo e histórico
 
 == 7. Aluno consulta e resgata vantagem (UC08 + UC09 + UC10) ==
 Aluno -> Frontend : abre /vantagens
 Frontend -> API : GET /vantagens
-API -> BD : lista vantagens ativas
+API -> Repo : Repository<Vantagem>.find({ ativa: true })
+Repo -> BD : SELECT
+Repo --> API : vantagens
 API --> Frontend : vantagens
 Aluno -> Frontend : "Resgatar" e confirma
 Frontend -> API : POST /transacoes/resgates { vantagemId }
-group transação do banco
-  API -> BD : debita aluno (WHERE saldo >= custo)
+group transação do banco (EntityManager)
+  API -> Repo : busca Vantagem; debita Aluno\n(WHERE saldo >= custo)
+  Repo -> BD : SELECT / UPDATE
+  Repo --> API : resultado
   alt saldo insuficiente / vantagem inexistente
     API --> Frontend : 400 / 404
     Frontend --> Aluno : exibe erro
   else ok
     API -> API : gera código de cupom único
-    API -> BD : registra resgate com código
+    API -> Repo : salva Resgate com código
+    Repo -> BD : INSERT
     BD --> API : commit
     API --> Frontend : 201 código + novo saldo
     Frontend --> Aluno : exibe cupom
@@ -125,7 +148,8 @@ Empresa -> Empresa : confere com o email de conferência
 == 8. Manutenção de conta (UC04) ==
 Aluno -> Frontend : edita perfil ou exclui conta
 Frontend -> API : PATCH / DELETE /alunos/:id (ou /empresas/:id)
-API -> BD : atualiza ou remove (somente o próprio usuário)
+API -> Repo : save / delete (somente o próprio usuário)
+Repo -> BD : UPDATE / DELETE
 API --> Frontend : 200 / 204
 
 @enduml

@@ -12,27 +12,46 @@ actor "Aluno / Professor" as Usuario
 participant Frontend
 participant "TransacoesController" as Controller
 participant "TransacoesService" as Service
+box "Camada de Repository (TypeORM)" #FFF8DC
+  participant "Repository<Professor>\n/ Repository<Aluno>" as PerfilRepo
+  participant "Repository<EnvioMoedas>" as EnvioRepo
+  participant "Repository<CreditoSemestral>\n/ Repository<Resgate>" as HistRepo
+end box
 database "Banco de Dados" as BD
+
+note over PerfilRepo, HistRepo : Acessados pelo EntityManager do DataSource\n(manager.findOneBy / manager.find)
 
 Usuario -> Frontend : abre /extrato
 Frontend -> Controller : GET /transacoes/extrato
 Controller -> Service : consultarExtrato(usuario)
 
 alt usuário é professor
-  Service -> BD : busca professor (saldo)
-  BD --> Service : professor
-  Service -> BD : envios do professor (com aluno)
-  BD --> Service : envios
-  Service -> BD : créditos semestrais do professor
-  BD --> Service : créditos
+  Service -> PerfilRepo : findOneBy(Professor, { id })
+  PerfilRepo -> BD : SELECT professor
+  BD --> PerfilRepo : linha
+  PerfilRepo --> Service : professor (saldo)
+  Service -> EnvioRepo : find({ professor: id }) com aluno
+  EnvioRepo -> BD : SELECT envio_moedas JOIN aluno
+  BD --> EnvioRepo : linhas
+  EnvioRepo --> Service : envios
+  Service -> HistRepo : find(CreditoSemestral, { professor: id })
+  HistRepo -> BD : SELECT credito_semestral
+  BD --> HistRepo : linhas
+  HistRepo --> Service : créditos
   Service -> Service : junta ENVIO + CREDITO_SEMESTRAL\nem ordem decrescente de data
 else usuário é aluno
-  Service -> BD : busca aluno (saldo)
-  BD --> Service : aluno
-  Service -> BD : moedas recebidas (com professor)
-  BD --> Service : recebimentos
-  Service -> BD : resgates (com vantagem e empresa)
-  BD --> Service : resgates
+  Service -> PerfilRepo : findOneBy(Aluno, { id })
+  PerfilRepo -> BD : SELECT aluno
+  BD --> PerfilRepo : linha
+  PerfilRepo --> Service : aluno (saldo)
+  Service -> EnvioRepo : find({ aluno: id }) com professor
+  EnvioRepo -> BD : SELECT envio_moedas JOIN professor
+  BD --> EnvioRepo : linhas
+  EnvioRepo --> Service : recebimentos
+  Service -> HistRepo : find(Resgate, { aluno: id }) com vantagem e empresa
+  HistRepo -> BD : SELECT resgate JOIN vantagem, empresa
+  BD --> HistRepo : linhas
+  HistRepo --> Service : resgates
   Service -> Service : junta RECEBIMENTO + RESGATE\nem ordem decrescente de data
 else empresa parceira
   Service --> Controller : ForbiddenException

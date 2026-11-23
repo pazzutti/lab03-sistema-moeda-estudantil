@@ -1,0 +1,124 @@
+@startuml diagrama_de_comunicacao
+' =====================================================================
+' Sistema de Moeda Estudantil
+' Diagrama de Comunicacao - ciclo de vida da moeda (UC01-UC12)
+' Fonte versionada em docs/diagramas/diagrama-de-comunicacao.puml
+' Mesmas etapas do diagrama de sequencia geral
+' (sequencia/diagrama-de-sequencia-geral.puml), vistas pelos objetos que
+' trocam mensagens. Numeracao: <etapa>.<ordem>, sequencial dentro de cada
+' etapa; cada ligacao lista, em ordem, as mensagens que passam por ela. "*" indica repeticao e "||"
+' mensagens enviadas em paralelo.
+' =====================================================================
+
+skinparam shadowing false
+skinparam ranksep 70
+skinparam nodesep 60
+skinparam defaultFontSize 11
+skinparam ArrowColor #444444
+skinparam rectangle {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+skinparam database {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+skinparam cloud {
+  BackgroundColor #FDFDFD
+  BorderColor #444444
+}
+skinparam note {
+  BackgroundColor #FFFBE6
+  BorderColor #AAAAAA
+}
+
+' ============================== ATORES ===============================
+actor Aluno
+actor Professor
+actor "Empresa Parceira" as Empresa
+
+' ============================== OBJETOS ==============================
+rectangle ":Frontend\n(Next.js)" as Frontend
+rectangle ":AuthGuard\n(JWT)" as Guard
+
+rectangle ":InstituicoesController" as InstCtrl
+rectangle ":InstituicoesService" as InstSrv
+rectangle ":AuthController" as AuthCtrl
+rectangle ":AlunosController" as AlunoCtrl
+rectangle ":AlunosService" as AlunoSrv
+rectangle ":EmpresasController" as EmpCtrl
+rectangle ":EmpresasService" as EmpSrv
+rectangle ":UsuariosService" as UsrSrv
+rectangle ":VantagensController" as VantCtrl
+rectangle ":VantagensService" as VantSrv
+rectangle ":TransacoesController" as TransCtrl
+rectangle ":TransacoesService" as TransSrv
+rectangle ":ProfessoresService\n(agendador)" as ProfSrv
+rectangle ":NotificacoesService" as NotifSrv
+rectangle ":EmailService\n(fila)" as EmailSrv
+
+database "Banco de Dados" as BD
+cloud "Mailtrap\n<<sistema externo>>" as Mailtrap
+
+' ======================== ATORES -> FRONTEND =========================
+Aluno --> Frontend : 1.1: preencherCadastroAluno(dados)\n6.1: consultarExtrato()\n7.1: consultarVantagens()\n7.6: resgatar(vantagem)\n8.1: editarPerfil(dados) | excluirConta()
+Professor --> Frontend : 2.1: entrar(login, senha)\n5.1: enviarMoedas(aluno, quantidade, motivo)
+Empresa --> Frontend : 1.15: preencherCadastroEmpresa(dados)\n4.1: cadastrarVantagem(nome, descrição, foto, custo)
+
+' ===================== FRONTEND -> API (HTTP) ========================
+Frontend --> Guard : 1.2: GET /instituicoes\n1.6: POST /alunos\n1.16: POST /empresas\n2.2: POST /auth/login\n4.2: POST /vantagens\n5.2: POST /transacoes/envios\n6.2: GET /transacoes/extrato\n7.2: GET /vantagens\n7.7: POST /transacoes/resgates\n8.2: PATCH | DELETE /alunos/:id
+
+note right of Guard
+  Guard global: rotas @Public()
+  (1.2, 1.6, 1.16, 2.2) passam direto;
+  nas demais, verifyAsync(token) e
+  401 se o token for inválido.
+end note
+
+' =================== AUTHGUARD -> CONTROLADORES ======================
+Guard --> InstCtrl : 1.3: listar()
+Guard --> AlunoCtrl : 1.7: criar(dto)\n8.3: atualizar(id, dto, usuario)\n| remover(id, usuario)
+Guard --> EmpCtrl : 1.17: criar(dto)
+Guard --> AuthCtrl : 2.3: token := login(dto)
+Guard --> VantCtrl : 4.3: criar(dto, usuario)\n7.3: listar()
+Guard --> TransCtrl : 5.3: enviarMoedas(dto, usuario)\n6.3: consultarExtrato(usuario)\n7.8: resgatarVantagem(dto, usuario)
+
+' ================== CONTROLADORES -> SERVICOS =======================
+InstCtrl --> InstSrv : 1.4: listar()
+AlunoCtrl --> AlunoSrv : 1.8: criar(dto)\n8.4: atualizar(id, dto, usuario)\n| remover(id, usuario)
+EmpCtrl --> EmpSrv : 1.18: criar(dto)
+AuthCtrl --> UsrSrv : 2.4: usuario := validarCredenciais(login, senha)
+VantCtrl --> VantSrv : 4.4: criar(dto, usuario)\n7.4: listar()
+TransCtrl --> TransSrv : 5.4: enviarMoedas(usuario, dto)\n6.4: consultarExtrato(usuario)\n7.9: resgatarVantagem(usuario, dto)
+
+' ===================== SERVICOS -> SERVICOS ==========================
+AlunoSrv --> InstSrv : 1.9: buscar(instituicaoId)
+AlunoSrv --> UsrSrv : 1.12: criar(manager, dto, ALUNO)\n8.5: atualizar(manager, usuario, dados)
+EmpSrv --> UsrSrv : 1.20: criar(manager, dto, EMPRESA)
+TransSrv --> NotifSrv : 5.6: notificarEnvioDeMoedas(dados)\n7.11: notificarResgate(dados)
+NotifSrv --> EmailSrv : 5.7: enviar(confirmação) || enviar(recebimento)\n7.13: enviar(cupom + QR Code) || enviar(conferência)
+ProfSrv --> ProfSrv : 3.1: creditarSemestre(agora)\n[no boot e a cada 1h]
+
+' ==================== SERVICOS -> BANCO DE DADOS =====================
+InstSrv --> BD : 1.5: SELECT instituições\n1.10: SELECT instituição por id
+UsrSrv --> BD : 1.13, 1.21: valida login e email únicos;\nINSERT usuario (senha bcrypt)\n2.5: SELECT usuario por login + bcrypt.compare\n8.6: UPDATE usuario (email, senha bcrypt)
+AlunoSrv --> BD : 1.11: valida CPF único\n1.14: INSERT aluno (saldo 0)\n8.7: UPDATE aluno | DELETE aluno e usuario\n(somente o próprio cadastro)
+EmpSrv --> BD : 1.19: valida CNPJ único\n1.22: INSERT empresa
+VantSrv --> BD : 4.5: INSERT vantagem ativa\n7.5: SELECT vantagens ativas
+TransSrv --> BD : 5.5: [transação] valida mesma instituição;\nUPDATE professor saldo -= qtd WHERE saldo >= qtd;\nUPDATE aluno saldo += qtd; INSERT envio\n6.5: SELECT saldo, envios/recebimentos,\ncréditos semestrais e resgates\n7.10: [transação] SELECT vantagem ativa;\nUPDATE aluno saldo -= custo WHERE saldo >= custo;\n~*[até código livre] gerarCodigoCupom();\nINSERT resgate (código do cupom)
+ProfSrv --> BD : 3.2: *[para cada professor sem crédito no semestre,\nna 1ª semana de fev/ago]: INSERT credito_semestral;\nUPDATE professor saldo += 1.000
+
+' ========================= EMAIL (EXTERNO) ===========================
+NotifSrv --> NotifSrv : 7.12: gerarQrCodeCupom(código)
+EmailSrv --> Mailtrap : 5.8: *send(email)\n7.14: *send(email)\n[fila: 1 email a cada 11 s]
+Mailtrap ..> Aluno : 5.9: "Você recebeu moedas" + motivo\n7.15: cupom com código e QR Code
+Mailtrap ..> Professor : 5.10: confirmação do envio
+Mailtrap ..> Empresa : 7.16: aviso de resgate para conferência\n(mesmo código do cupom)
+
+note bottom of NotifSrv
+  5.6 e 7.11 são assíncronas (sem await),
+  disparadas após o commit: falha no email
+  vai para o log e não desfaz a transação.
+end note
+
+@enduml

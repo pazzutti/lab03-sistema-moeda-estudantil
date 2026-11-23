@@ -11,6 +11,7 @@ autonumber
 
 participant "TransacoesService" as Transacoes
 participant "NotificacoesService" as Notificacoes
+participant "gerarQrCodeCupom" as QrCode
 participant "emailTemplates" as Templates
 participant "EmailService" as EmailSrv
 participant "Mailtrap" as Mailtrap <<sistema externo>>
@@ -19,10 +20,18 @@ actor "Empresa Parceira" as Empresa
 
 Transacoes ->> Notificacoes : notificarResgate(aluno, empresa, vantagem,\ncusto, codigo, saldoAluno)
 
+Notificacoes -> QrCode : gerarQrCodeCupom(codigo)
+alt imagem gerada
+  QrCode --> Notificacoes : PNG do QR Code
+else falha
+  QrCode --> Notificacoes : erro
+  Notificacoes -> Notificacoes : registra no log\n(email segue só com o código)
+end
+
 par cupom do aluno
-  Notificacoes -> Templates : cupomAluno(vantagem, empresa, custo, codigo, saldo)
-  Templates --> Notificacoes : html
-  Notificacoes -> EmailSrv : enviar("Seu cupom {codigo}: {vantagem}")
+  Notificacoes -> Templates : cupomAluno(vantagem, empresa, custo, codigo,\nsaldo, qrCodeCid)
+  Templates --> Notificacoes : html com <img src="cid:qrcode-{codigo}">
+  Notificacoes -> EmailSrv : enviar("Seu cupom {codigo}: {vantagem}",\nimagens = [QR Code embutido])
 else conferência da empresa
   Notificacoes -> Templates : conferenciaEmpresa(aluno, vantagem, custo, codigo)
   Templates --> Notificacoes : html
@@ -45,12 +54,12 @@ loop para cada email (fila com intervalo do Mailtrap)
 end
 
 opt emails entregues
-  Mailtrap ->> Aluno : email com o código do cupom
+  Mailtrap ->> Aluno : email com o QR Code e o código do cupom
   Mailtrap ->> Empresa : email com o mesmo código,\nnome do aluno e vantagem
 end
 
 == Troca presencial ==
-Aluno -> Empresa : apresenta o código do cupom
-Empresa -> Empresa : confere com o código do email de conferência
+Aluno -> Empresa : apresenta o QR Code (ou o código) do cupom
+Empresa -> Empresa : lê o QR Code e confere com o código\ndo email de conferência
 
 @enduml

@@ -43,9 +43,16 @@ function blocoMotivo(motivo: string): string {
   return `<blockquote style="margin:16px 0;padding:12px 16px;background:#eef2ff;border-left:4px solid #4f46e5;white-space:pre-line;">${escapar(motivo)}</blockquote>`;
 }
 
-/** O mesmo bloco nos dois emails do resgate, para a conferencia visual. */
-function blocoCodigo(codigo: string): string {
+/**
+ * O mesmo bloco nos dois emails do resgate, para a conferencia visual. O
+ * email do aluno traz tambem o QR Code, embutido como imagem "cid:".
+ */
+function blocoCodigo(codigo: string, qrCodeCid?: string): string {
+  const qrCode = qrCodeCid
+    ? `<img src="cid:${escapar(qrCodeCid)}" width="180" height="180" alt="QR Code do cupom ${escapar(codigo)}" style="display:block;margin:0 auto 12px;border:0;" />`
+    : '';
   return `<div style="margin:20px 0;padding:16px;border:2px dashed #4f46e5;border-radius:8px;background:#eef2ff;text-align:center;">
+            ${qrCode}
             <p style="margin:0 0 6px;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:1px;">Código do cupom</p>
             <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:28px;font-weight:bold;letter-spacing:4px;color:#312e81;">${escapar(codigo)}</p>
           </div>`;
@@ -94,13 +101,18 @@ export const emailTemplates = {
     custo: number;
     codigo: string;
     saldo: number;
+    /** Sem ele (falha ao gerar a imagem), o email segue so com o codigo. */
+    qrCodeCid?: string;
   }): string {
+    const comoApresentar = dados.qrCodeCid
+      ? 'Apresente este QR Code ou o código'
+      : 'Apresente este código';
     return layout(
       'Seu cupom está pronto!',
       `<p>Olá, ${escapar(dados.nomeAluno)}!</p>
           <p>Você trocou <strong>${moedas(dados.custo)}</strong> por <strong>${escapar(dados.nomeVantagem)}</strong>, oferecida por <strong>${escapar(dados.nomeEmpresa)}</strong>.</p>
-          ${blocoCodigo(dados.codigo)}
-          <p>Apresente este código na <strong>${escapar(dados.nomeEmpresa)}</strong> para receber a vantagem. A empresa recebeu o mesmo código para conferir a troca.</p>
+          ${blocoCodigo(dados.codigo, dados.qrCodeCid)}
+          <p>${comoApresentar} na <strong>${escapar(dados.nomeEmpresa)}</strong> para receber a vantagem. A empresa recebeu o mesmo código para conferir a troca.</p>
           <p>Seu saldo atual é de <strong>${moedas(dados.saldo)}</strong>.</p>`,
     );
   },
@@ -118,7 +130,7 @@ export const emailTemplates = {
       `<p>Olá, ${escapar(dados.nomeEmpresa)}!</p>
           <p><strong>${escapar(dados.nomeAluno)}</strong> resgatou a vantagem <strong>${escapar(dados.nomeVantagem)}</strong> por <strong>${moedas(dados.custo)}</strong>.</p>
           ${blocoCodigo(dados.codigo)}
-          <p>Quando o aluno se apresentar, confira se o código do cupom dele é igual a este antes de entregar a vantagem.</p>`,
+          <p>Quando o aluno se apresentar, leia o QR Code do cupom dele ou confira se o código é igual a este antes de entregar a vantagem.</p>`,
     );
   },
 };

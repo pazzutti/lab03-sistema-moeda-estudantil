@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { type Email, EmailService } from './email.service.js';
+import { gerarQrCodeCupom } from '../common/qrcode-cupom.js';
+import {
+  type Email,
+  EmailService,
+  type ImagemEmbutida,
+} from './email.service.js';
 import { emailTemplates } from './templates/email-templates.js';
 
 interface Destinatario {
@@ -64,6 +69,7 @@ export class NotificacoesService {
     saldoAluno: number;
   }): Promise<void> {
     const { aluno, empresa, vantagem, custo, codigo, saldoAluno } = dados;
+    const qrCode = await this.qrCodeDoCupom(codigo);
 
     await Promise.all([
       this.enviarSemFalhar({
@@ -76,7 +82,9 @@ export class NotificacoesService {
           custo,
           codigo,
           saldo: saldoAluno,
+          qrCodeCid: qrCode?.cid,
         }),
+        imagens: qrCode ? [qrCode] : [],
       }),
       this.enviarSemFalhar({
         para: empresa,
@@ -91,6 +99,29 @@ export class NotificacoesService {
         }),
       }),
     ]);
+  }
+
+  /**
+   * QR Code do cupom para embutir no email do aluno. Se a imagem falhar, o
+   * cupom ainda vale pelo codigo, entao o email sai sem ela.
+   */
+  private async qrCodeDoCupom(
+    codigo: string,
+  ): Promise<ImagemEmbutida | undefined> {
+    try {
+      return {
+        cid: `qrcode-${codigo}`,
+        nomeArquivo: `cupom-${codigo}.png`,
+        conteudo: await gerarQrCodeCupom(codigo),
+        tipo: 'image/png',
+      };
+    } catch (erro) {
+      const motivo = erro instanceof Error ? erro.message : String(erro);
+      this.logger.error(
+        `Falha ao gerar o QR Code do cupom ${codigo}: ${motivo}`,
+      );
+      return undefined;
+    }
   }
 
   private async enviarSemFalhar(email: Email): Promise<void> {
